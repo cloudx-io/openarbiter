@@ -1,0 +1,182 @@
+# yaml-language-server: $schema=https://json.schemastore.org/golangci-lint.json
+# https://golangci-lint.run/usage/configuration/
+version: "2"
+run:
+  tests: true
+# https://golangci-lint.run/usage/linters/
+linters:
+  default: none
+  enable:
+    - asciicheck
+    - errcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - forbidigo
+    - gocritic
+    - gomodguard
+    - govet
+    - importas
+    - ineffassign
+    - loggercheck
+    - nolintlint
+    # - paralleltest
+    - revive
+    - staticcheck
+    - thelper
+    - unparam
+    - unused
+    - usetesting
+    - whitespace
+    - testifylint
+  settings:
+    testifylint:
+      disable:
+        - require-error
+        - float-compare
+    exhaustive:
+      check:
+        - switch
+        - map
+      default-signifies-exhaustive: true
+    gocritic:
+      disabled-checks:
+        - assignOp
+        - appendAssign
+        - captLocal
+        - commentFormatting
+        - elseif
+        - ifElseChain
+        - offBy1
+        - singleCaseSwitch
+        - underef
+    govet:
+      disable:
+        - fieldalignment
+        - nilness
+        - shadow
+        - unusedwrite
+      enable-all: true
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+      allow-no-explanation:
+        - bodyclose
+        - errcheck
+        - errname
+        - gochecknoglobals
+        - gochecknoinits
+        - ineffassign
+        - staticcheck
+        - unparam
+        - unused
+      allow-unused: false
+    # https://github.com/mgechev/revive/blob/master/RULES_DESCRIPTIONS.md
+    revive:
+      enable-all-rules: false
+      rules:
+        - name: atomic
+        - name: blank-imports
+        - name: bare-return
+        - name: bool-literal-in-expr
+        - name: call-to-gc
+        - name: comment-spacings
+          disabled: true
+        - name: confusing-results
+        - name: constant-logical-expr
+        - name: context-as-argument
+          arguments:
+            - allowTypesBefore: "*testing.T"
+        - name: context-keys-type
+        - name: deep-exit
+        - name: datarace
+        - name: defer
+        - name: dot-imports
+        - name: duplicated-imports
+        - name: early-return
+        - name: empty-block
+        - name: empty-lines
+        - name: error-naming
+        - name: error-return
+        - name: error-strings
+        - name: errorf
+        # - name: exported
+        - name: function-result-limit
+          arguments:
+            - 3
+        - name: get-return
+        - name: identical-branches
+        - name: if-return
+        - name: imports-blocklist
+          arguments: []
+        - name: import-shadowing
+        - name: increment-decrement
+        - name: indent-error-flow
+        - name: modifies-parameter
+        - name: modifies-value-receiver
+        - name: nested-structs
+        # - name: package-comments
+        - name: range
+        - name: range-val-address
+        - name: range-val-in-closure
+        - name: receiver-naming
+        - name: redefines-builtin-id
+        - name: string-format
+        - name: string-of-int
+        - name: struct-tag
+        - name: superfluous-else
+        - name: time-equal
+        - name: time-naming
+        - name: unconditional-recursion
+        - name: unexported-naming
+        - name: unexported-return
+        - name: unhandled-error
+          arguments:
+            - '^fmt\..*'
+            - '^bytes\.Buffer\.Write(Byte|Rune|String)?$'
+            - '^string\.Writer\.Write(Byte|Rune|String)?$'
+            - '^strings\.Builder\.Write(Byte|Rune|String)?$'
+        - name: unnecessary-stmt
+        - name: unreachable-code
+        - name: unused-parameter
+          arguments:
+            - allow-regex: "^_"
+        - name: unused-receiver
+          arguments:
+            - allow-regex: "^_"
+        - name: use-any
+        - name: useless-break
+        - name: var-declaration
+        - name: waitgroup-by-value
+  exclusions:
+    generated: lax
+    rules:
+      # Allow shadowing of `err` because it's so common
+      - path: (.+)\.go$
+        text: declaration of "err" shadows declaration at
+      # Allow fmt.Println in cmd/ directories (CLI tools need console output)
+      - path: (.+)/cmd/(.+)\.go$
+        linters:
+          - forbidigo
+      # Allow os.Exit in cmd/ directories (CLI tools need exit codes)
+      - path: (.+)/cmd/(.+)\.go$
+        text: "deep-exit"
+        linters:
+          - revive
+issues:
+  max-issues-per-linter: 10000
+  max-same-issues: 10000
+formatters:
+  enable:
+    - gci
+    - gofumpt
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - localmodule
+        - default
+  exclusions:
+    generated: lax
+
