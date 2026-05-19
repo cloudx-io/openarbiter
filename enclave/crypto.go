@@ -13,12 +13,6 @@ import (
 	"github.com/cloudx-io/openarbiter/core"
 )
 
-// pricePayload is the JSON shape sealed inside
-// [core.EncryptedRevenue.EncryptedPayload].
-type pricePayload struct {
-	Price core.DollarsPerMille `json:"price"`
-}
-
 // decryptCPMDollars opens a [core.EncryptedRevenue] under priv and
 // parses the inner JSON payload back into a [core.DollarsPerMille].
 // Returns a distinct error for each failure mode so operators have a
@@ -74,7 +68,7 @@ func decryptCPMDollars(priv *rsa.PrivateKey, ct *core.EncryptedRevenue) (core.Do
 		return 0, fmt.Errorf("AES-GCM open: %w", err)
 	}
 
-	var p pricePayload
+	var p core.PricePayload
 	if err := json.Unmarshal(plaintext, &p); err != nil {
 		return 0, fmt.Errorf("unmarshal revenue payload %q: %w", plaintext, err)
 	}

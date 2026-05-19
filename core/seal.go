@@ -28,8 +28,11 @@ const HashAlgorithmSHA256 = "SHA-256"
 // object {"price": <DPM float>}.
 type EncryptedRevenue = enclaveapi.EncryptedBidPrice
 
-// pricePayload is the JSON shape sealed inside EncryptedRevenue.EncryptedPayload.
-type pricePayload struct {
+// PricePayload is the JSON shape sealed inside
+// [EncryptedRevenue.EncryptedPayload]. The same type is consumed by the
+// enclave-side decryption path so the wire-level JSON is
+// byte-identical end to end.
+type PricePayload struct {
 	Price DollarsPerMille `json:"price"`
 }
 
@@ -64,7 +67,7 @@ func SealCPMDollars(pub *rsa.PublicKey, dpm DollarsPerMille) (*EncryptedRevenue,
 	if pub == nil {
 		return nil, ErrNoKey
 	}
-	plaintext, err := json.Marshal(pricePayload{Price: dpm})
+	plaintext, err := json.Marshal(PricePayload{Price: dpm})
 	if err != nil {
 		return nil, fmt.Errorf("marshal revenue payload: %w", err)
 	}
