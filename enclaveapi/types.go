@@ -102,13 +102,19 @@ type EnclaveArbitrationResponse struct {
 	Success               bool                  `json:"success"`
 	Message               string                `json:"message,omitempty"`
 	AttestationCOSEBase64 AttestationCOSEBase64 `json:"attestation_cose_base64,omitempty"`
-	ProcessingTimeMS      int64                 `json:"processing_time_ms"`
+	// ExcludedBids enumerates wire bids the arbiter saw but did not
+	// rank, alongside the reason. The same slice is bound to the
+	// attestation user data (see
+	// [ArbitrationAttestationUserData.ExcludedBids]).
+	ExcludedBids     []core.ExcludedBid `json:"excluded_bids,omitempty"`
+	ProcessingTimeMS int64              `json:"processing_time_ms"`
 }
 
 // ArbitrationAttestationUserData is the JSON shape embedded in the
 // arbiter's attestation user_data field. It binds the participating
-// bids, the request envelope, and the chosen winner so an off-enclave
-// validator can replay the inclusion and outcome checks.
+// bids, the request envelope, the chosen winner, and any bids the
+// arbiter excluded so an off-enclave validator can replay the
+// inclusion, exclusion, and outcome checks.
 type ArbitrationAttestationUserData struct {
 	RequestID    string                   `json:"request_id"`
 	BidHashes    []string                 `json:"bid_hashes"`
@@ -116,7 +122,10 @@ type ArbitrationAttestationUserData struct {
 	RequestHash  string                   `json:"request_hash"`
 	RequestNonce string                   `json:"request_nonce"`
 	Winner       *ArbiterBidWithoutSource `json:"winner,omitempty"`
-	Timestamp    time.Time                `json:"timestamp"`
+	// ExcludedBids lists wire bids the arbiter saw but did not rank,
+	// alongside the reason for each exclusion.
+	ExcludedBids []core.ExcludedBid `json:"excluded_bids,omitempty"`
+	Timestamp    time.Time          `json:"timestamp"`
 }
 
 // ArbitrationAttestationDoc is the parsed arbitration attestation: the

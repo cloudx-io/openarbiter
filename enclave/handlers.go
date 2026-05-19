@@ -54,10 +54,10 @@ func HandleArbitrationRequest(
 	start := time.Now()
 
 	arb, _ := NewArbiter(km.PrivateKey())
-	coreBids := wireBidsToCoreBids(req.Bids)
+	coreBids, excluded := wireBidsToCoreBids(req.Bids)
 	resp := arb.Arbitrate(coreBids, nil)
 
-	cose, err := GenerateArbitrationAttestation(attester, req, resp.Bids, resp.Winner)
+	cose, err := GenerateArbitrationAttestation(attester, req, resp.Bids, resp.Winner, excluded)
 	if err != nil {
 		return enclaveapi.EnclaveArbitrationResponse{
 			Type:             "arbitration_response",
@@ -71,18 +71,26 @@ func HandleArbitrationRequest(
 		Success:               true,
 		Message:               fmt.Sprintf("arbitrated %d bids", len(req.Bids)),
 		AttestationCOSEBase64: cose.EncodeBase64(),
+		ExcludedBids:          excluded,
 		ProcessingTimeMS:      time.Since(start).Milliseconds(),
 	}
 }
 
 // wireBidsToCoreBids converts the JSON-encodable [enclaveapi.WireBid]
 // envelope into [core.Bid] instances suitable for [Arbiter.Arbitrate].
-// Bids whose IDs fail to parse as UUIDs are dropped.
-func wireBidsToCoreBids(wire []enclaveapi.WireBid) []core.Bid {
+// Bids whose IDs fail to parse as UUIDs are returned in the second
+// slice as [core.ExcludedBid]s so they remain visible in the
+// attestation rather than being silently dropped.
+func wireBidsToCoreBids(wire []enclaveapi.WireBid) ([]core.Bid, []core.ExcludedBid) {
 	bids := make([]core.Bid, 0, len(wire))
+	var excluded []core.ExcludedBid
 	for _, wb := range wire {
 		id, err := uuid.Parse(wb.ID)
 		if err != nil {
+			excluded = append(excluded, core.ExcludedBid{
+				BidID:  wb.ID,
+				Reason: core.ExclusionReasonMalformedBidID,
+			})
 			continue
 		}
 		bids = append(bids, core.Bid{
@@ -92,5 +100,5 @@ func wireBidsToCoreBids(wire []enclaveapi.WireBid) []core.Bid {
 			EncryptedCPMDollars: wb.EncryptedCPMDollars,
 		})
 	}
-	return bids
+	return bids, excluded
 }

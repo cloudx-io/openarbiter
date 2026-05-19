@@ -70,7 +70,7 @@ func TestHandleArbitrationRequest_RanksAndAttests(t *testing.T) {
 	assert.Len(t, ud.BidHashes, 2)
 }
 
-func TestHandleArbitrationRequest_DropsMalformedBidIDs(t *testing.T) {
+func TestHandleArbitrationRequest_RecordsMalformedBidIDsAsExcluded(t *testing.T) {
 	t.Parallel()
 	km, err := NewKeyManager()
 	require.NoError(t, err)
@@ -85,6 +85,11 @@ func TestHandleArbitrationRequest_DropsMalformedBidIDs(t *testing.T) {
 	}
 	resp := HandleArbitrationRequest(newFakeAttester(), km, req)
 	require.True(t, resp.Success)
+
+	wantExcluded := []core.ExcludedBid{{BidID: "not-a-uuid", Reason: core.ExclusionReasonMalformedBidID}}
+	assert.Equal(t, wantExcluded, resp.ExcludedBids,
+		"response should surface malformed bid as excluded")
+
 	cose, err := resp.AttestationCOSEBase64.Decode()
 	require.NoError(t, err)
 	_, userDataBytes, err := cose.ParseAttestationDoc()
@@ -94,4 +99,6 @@ func TestHandleArbitrationRequest_DropsMalformedBidIDs(t *testing.T) {
 	assert.Len(t, ud.BidHashes, 1)
 	require.NotNil(t, ud.Winner)
 	assert.Equal(t, goodID, ud.Winner.ID)
+	assert.Equal(t, wantExcluded, ud.ExcludedBids,
+		"attestation should bind malformed bid as excluded")
 }

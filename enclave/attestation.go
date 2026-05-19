@@ -42,14 +42,16 @@ func publicKeyToPEM(pub *rsa.PublicKey) (string, error) {
 }
 
 // GenerateArbitrationAttestation builds the arbiter's per-request
-// attestation: bid hashes (one per resolved bid), a request hash, and a
-// winner descriptor, all bound under freshly-generated nonces. The
-// caller is the enclave's arbitration handler.
+// attestation: bid hashes (one per resolved bid), a request hash, a
+// winner descriptor, and any [core.ExcludedBid]s the arbiter saw but
+// did not rank — all bound under freshly-generated nonces. The caller
+// is the enclave's arbitration handler.
 func GenerateArbitrationAttestation(
 	attester EnclaveAttester,
 	req enclaveapi.EnclaveArbitrationRequest,
 	resolved []core.ArbiterBid,
 	winner *core.ArbiterBid,
+	excluded []core.ExcludedBid,
 ) (enclaveapi.AttestationCOSE, error) {
 	if attester == nil {
 		return nil, fmt.Errorf("nil attester")
@@ -87,6 +89,7 @@ func GenerateArbitrationAttestation(
 		RequestHash:  core.ComputeRequestHash(req.RequestID, requestNonce),
 		RequestNonce: requestNonce,
 		Winner:       winnerDescriptor,
+		ExcludedBids: excluded,
 		Timestamp:    now,
 	}
 

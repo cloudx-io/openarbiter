@@ -81,7 +81,7 @@ func TestGenerateArbitrationAttestation_BindsBidsAndWinner(t *testing.T) {
 		Timestamp: time.Now().UTC(),
 	}
 
-	cose, err := GenerateArbitrationAttestation(att, req, resolved, &resolved[1])
+	cose, err := GenerateArbitrationAttestation(att, req, resolved, &resolved[1], nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, cose)
 
@@ -111,7 +111,7 @@ func TestGenerateArbitrationAttestation_BindsBidsAndWinner(t *testing.T) {
 func TestGenerateArbitrationAttestation_NoWinner(t *testing.T) {
 	t.Parallel()
 	att := newFakeAttester()
-	cose, err := GenerateArbitrationAttestation(att, enclaveapi.EnclaveArbitrationRequest{RequestID: "r"}, nil, nil)
+	cose, err := GenerateArbitrationAttestation(att, enclaveapi.EnclaveArbitrationRequest{RequestID: "r"}, nil, nil, nil)
 	require.NoError(t, err)
 	_, userDataBytes, err := cose.ParseAttestationDoc()
 	require.NoError(t, err)
@@ -123,7 +123,7 @@ func TestGenerateArbitrationAttestation_NoWinner(t *testing.T) {
 
 func TestGenerateArbitrationAttestation_NilAttester(t *testing.T) {
 	t.Parallel()
-	_, err := GenerateArbitrationAttestation(nil, enclaveapi.EnclaveArbitrationRequest{}, nil, nil)
+	_, err := GenerateArbitrationAttestation(nil, enclaveapi.EnclaveArbitrationRequest{}, nil, nil, nil)
 	require.Error(t, err)
 }
 
