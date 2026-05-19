@@ -8,6 +8,19 @@ import (
 	"github.com/cloudx-io/openarbiter/enclaveapi"
 )
 
+// BidExpectation is the caller's expectation about how its bid
+// appears in the attestation.
+type BidExpectation int
+
+const (
+	// ExpectIncluded means the caller expects its bid hash to be among
+	// the attested participating bids.
+	ExpectIncluded BidExpectation = iota
+	// ExpectExcluded means the caller expects its bid to appear in the
+	// attestation's excluded list under [ExpectedExclusionReason].
+	ExpectExcluded
+)
+
 // ArbitrationValidationInput contains everything a caller needs to
 // verify that its bid was faithfully arbitrated.
 type ArbitrationValidationInput struct {
@@ -18,13 +31,24 @@ type ArbitrationValidationInput struct {
 	KnownPCRs []PCRSet
 	// RequestID is the arbitration request envelope's ID.
 	RequestID string
-	// BidID is the caller's bid; the validator checks that
-	// SHA256(BidID|BidRevenue|nonce) is among the attested bid hashes.
+	// BidID is the caller's bid; the validator checks the attestation
+	// either lists its hash among the participants (Expectation =
+	// ExpectIncluded) or records it as excluded under the expected
+	// reason (Expectation = ExpectExcluded).
 	BidID string
 	// BidRevenue is the per-impression revenue the caller believes the
-	// arbiter saw for its bid (post-decryption).
+	// arbiter saw for its bid (post-decryption). Ignored when
+	// Expectation is [ExpectExcluded].
 	BidRevenue core.MicroDollars
-	// IsWinner is the caller's expectation about the outcome.
+	// Expectation selects between the included and excluded validation
+	// paths. Defaults to [ExpectIncluded].
+	Expectation BidExpectation
+	// ExpectedExclusionReason is the reason string the caller expects
+	// to find on its [core.ExcludedBid] entry when Expectation is
+	// [ExpectExcluded] (e.g. [core.ExclusionReasonMalformedBidID]).
+	ExpectedExclusionReason string
+	// IsWinner is the caller's expectation about the outcome. Only
+	// consulted when Expectation is [ExpectIncluded].
 	IsWinner bool
 	// Roots, if non-nil, overrides the default AWS Nitro root certificate
 	// pool used to verify the attestation signing chain. Production
@@ -66,11 +90,41 @@ func ValidateArbitrationAttestation(input *ArbitrationValidationInput) (*Arbitra
 		return result, nil
 	}
 
-	result.BidHashValid = validateBidHash(input, doc, result)
+	switch input.Expectation {
+	case ExpectExcluded:
+		result.BidExclusionValid = validateBidExclusion(input, doc, result)
+		// When the caller expects exclusion they need not assert
+		// inclusion or a specific outcome; treat those checks as
+		// trivially satisfied so IsValid() reflects the exclusion path.
+		result.BidHashValid = true
+		result.WinnerValid = true
+	default:
+		result.BidHashValid = validateBidHash(input, doc, result)
+		result.WinnerValid = validateWinner(input, doc, result)
+		// Exclusion check is trivially satisfied on the inclusion path.
+		result.BidExclusionValid = true
+	}
 	result.RequestHashValid = validateRequestHash(input, doc, result)
-	result.WinnerValid = validateWinner(input, doc, result)
 
 	return result, nil
+}
+
+func validateBidExclusion(input *ArbitrationValidationInput, doc *enclaveapi.ArbitrationAttestationDoc, result *ArbitrationValidationResult) bool {
+	for _, eb := range doc.UserData.ExcludedBids {
+		if eb.BidID == input.BidID {
+			if eb.Reason == input.ExpectedExclusionReason {
+				result.ValidationDetails = append(result.ValidationDetails,
+					fmt.Sprintf("Bid exclusion confirmed: %s (%s)", eb.BidID, eb.Reason))
+				return true
+			}
+			result.ValidationDetails = append(result.ValidationDetails,
+				fmt.Sprintf("Bid exclusion reason mismatch: expected %q, attestation has %q", input.ExpectedExclusionReason, eb.Reason))
+			return false
+		}
+	}
+	result.ValidationDetails = append(result.ValidationDetails,
+		fmt.Sprintf("Bid %s not found among %d attested exclusions", input.BidID, len(doc.UserData.ExcludedBids)))
+	return false
 }
 
 func validateBidHash(input *ArbitrationValidationInput, doc *enclaveapi.ArbitrationAttestationDoc, result *ArbitrationValidationResult) bool {

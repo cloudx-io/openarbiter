@@ -37,15 +37,23 @@ func (r *BaseValidationResult) IsValid() bool {
 // [BaseValidationResult] that adds the user-data checks.
 type ArbitrationValidationResult struct {
 	BaseValidationResult
-	BidHashValid     bool
-	RequestHashValid bool
-	WinnerValid      bool
+	// BidHashValid is true when the caller's bid is included in the
+	// attested participating-bid hashes (or trivially true on the
+	// excluded path).
+	BidHashValid bool
+	// BidExclusionValid is true when the caller's bid is recorded in
+	// the attestation's excluded list under the expected reason (or
+	// trivially true on the included path).
+	BidExclusionValid bool
+	RequestHashValid  bool
+	WinnerValid       bool
 }
 
 // IsValid reports whether every base and user-data check passed.
 func (r *ArbitrationValidationResult) IsValid() bool {
 	return r.BaseValidationResult.IsValid() &&
 		r.BidHashValid &&
+		r.BidExclusionValid &&
 		r.RequestHashValid &&
 		r.WinnerValid
 }

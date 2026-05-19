@@ -170,6 +170,105 @@ func TestIntegration_ArbitrationAttestation_RoundTrip(t *testing.T) {
 	})
 }
 
+// TestIntegration_ArbitrationAttestation_ExcludedBid pins the path
+// where a bid the arbiter saw but did not rank is bound to the
+// attestation as an exclusion. The caller can then prove their bid
+// reached the arbiter without participating.
+func TestIntegration_ArbitrationAttestation_ExcludedBid(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC().Truncate(time.Second)
+	ca := newSyntheticCA(t, now.Add(-time.Hour), now.Add(time.Hour))
+
+	requestID := uuid.NewString()
+	winnerBidID := uuid.NewString()
+	winnerRevenue := core.MicroDollars(2_500_000)
+	excludedBidID := "not-a-uuid"
+
+	bidNonce := randomNonce(t)
+	requestNonce := randomNonce(t)
+
+	userData := enclaveapi.ArbitrationAttestationUserData{
+		RequestID:    requestID,
+		BidHashes:    []string{core.ComputeBidHash(winnerBidID, winnerRevenue, bidNonce)},
+		BidHashNonce: bidNonce,
+		RequestHash:  core.ComputeRequestHash(requestID, requestNonce),
+		RequestNonce: requestNonce,
+		Winner: &enclaveapi.ArbiterBidWithoutSource{
+			ID:      winnerBidID,
+			Revenue: winnerRevenue,
+		},
+		ExcludedBids: []core.ExcludedBid{{
+			BidID:  excludedBidID,
+			Reason: core.ExclusionReasonMalformedBidID,
+		}},
+		Timestamp: now,
+	}
+	att := signAttestation(t, ca, fixedPCRs, now, userData)
+
+	t.Run("excluded bidder confirms exclusion", func(t *testing.T) {
+		t.Parallel()
+		result, err := ValidateArbitrationAttestation(&ArbitrationValidationInput{
+			AttestationCOSEGzip:     att.COSEGzip,
+			KnownPCRs:               []PCRSet{fixedPCRs},
+			RequestID:               requestID,
+			BidID:                   excludedBidID,
+			Expectation:             ExpectExcluded,
+			ExpectedExclusionReason: core.ExclusionReasonMalformedBidID,
+			Roots:                   ca.rootPool(),
+		})
+		require.NoError(t, err)
+		assert.True(t, result.IsValid(), "details: %v", result.ValidationDetails)
+		assert.True(t, result.BidExclusionValid)
+	})
+
+	t.Run("wrong exclusion reason fails", func(t *testing.T) {
+		t.Parallel()
+		result, err := ValidateArbitrationAttestation(&ArbitrationValidationInput{
+			AttestationCOSEGzip:     att.COSEGzip,
+			KnownPCRs:               []PCRSet{fixedPCRs},
+			RequestID:               requestID,
+			BidID:                   excludedBidID,
+			Expectation:             ExpectExcluded,
+			ExpectedExclusionReason: "some other reason",
+			Roots:                   ca.rootPool(),
+		})
+		require.NoError(t, err)
+		assert.False(t, result.BidExclusionValid)
+		assert.False(t, result.IsValid())
+	})
+
+	t.Run("unknown bid id not in exclusions fails", func(t *testing.T) {
+		t.Parallel()
+		result, err := ValidateArbitrationAttestation(&ArbitrationValidationInput{
+			AttestationCOSEGzip:     att.COSEGzip,
+			KnownPCRs:               []PCRSet{fixedPCRs},
+			RequestID:               requestID,
+			BidID:                   "some-other-bid",
+			Expectation:             ExpectExcluded,
+			ExpectedExclusionReason: core.ExclusionReasonMalformedBidID,
+			Roots:                   ca.rootPool(),
+		})
+		require.NoError(t, err)
+		assert.False(t, result.BidExclusionValid)
+		assert.False(t, result.IsValid())
+	})
+
+	t.Run("winner perspective still passes alongside an exclusion", func(t *testing.T) {
+		t.Parallel()
+		result, err := ValidateArbitrationAttestation(&ArbitrationValidationInput{
+			AttestationCOSEGzip: att.COSEGzip,
+			KnownPCRs:           []PCRSet{fixedPCRs},
+			RequestID:           requestID,
+			BidID:               winnerBidID,
+			BidRevenue:          winnerRevenue,
+			IsWinner:            true,
+			Roots:               ca.rootPool(),
+		})
+		require.NoError(t, err)
+		assert.True(t, result.IsValid(), "details: %v", result.ValidationDetails)
+	})
+}
+
 // TestIntegration_KeyAttestation_RoundTrip exercises the public-key
 // attestation path. Pins that the enclave's KeyAttestationUserData
 // (carrying the PEM) round-trips through ValidateKeyAttestation.

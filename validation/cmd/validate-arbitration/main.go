@@ -1,7 +1,7 @@
 // Command validate-arbitration verifies an arbiter attestation against
 // a set of trusted PCR measurements. It is the off-enclave half of the
 // arbitration trust pipeline: bidders run it (or the CI equivalent) to
-// confirm the arbiter saw and ranked their bid as expected.
+// confirm the arbiter saw and arbitrated their bid as expected.
 //
 // Usage:
 //
@@ -10,8 +10,13 @@
 //	                     -bid-id <bid-id> \
 //	                     -revenue-micros <int64> \
 //	                     [-is-winner] \
+//	                     [-exclusion-reason <reason>] \
 //	                     [-format text|json] \
 //	                     <attestation-cose-gzip>
+//
+// Supplying -exclusion-reason switches the validator into the exclusion
+// path: it asserts the bid is recorded in the attestation's excluded
+// list under the supplied reason rather than among the participants.
 package main
 
 import (
@@ -31,6 +36,7 @@ func main() {
 	bidID := flag.String("bid-id", "", "Caller's bid ID (required)")
 	revenueMicros := flag.Int64("revenue-micros", 0, "Caller's per-impression revenue in MicroDollars")
 	isWinner := flag.Bool("is-winner", false, "Whether the caller expects to have won")
+	exclusionReason := flag.String("exclusion-reason", "", "If set, validate that the bid was excluded under this reason rather than included")
 	outputFormat := flag.String("format", "text", "Output format: text or json")
 	flag.Parse()
 
@@ -45,15 +51,20 @@ func main() {
 		os.Exit(2)
 	}
 
-	coseGzip := enclaveapi.AttestationCOSEGzip(flag.Arg(0))
-	result, err := validation.ValidateArbitrationAttestation(&validation.ArbitrationValidationInput{
-		AttestationCOSEGzip: coseGzip,
+	input := &validation.ArbitrationValidationInput{
+		AttestationCOSEGzip: enclaveapi.AttestationCOSEGzip(flag.Arg(0)),
 		KnownPCRs:           knownPCRs,
 		RequestID:           *requestID,
 		BidID:               *bidID,
 		BidRevenue:          core.MicroDollars(*revenueMicros),
 		IsWinner:            *isWinner,
-	})
+	}
+	if *exclusionReason != "" {
+		input.Expectation = validation.ExpectExcluded
+		input.ExpectedExclusionReason = *exclusionReason
+	}
+
+	result, err := validation.ValidateArbitrationAttestation(input)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "validate: %v\n", err)
 		os.Exit(2)
