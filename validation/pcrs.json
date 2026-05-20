@@ -1,3 +1,11 @@
 {
-  "pcr_sets": []
+  "pcr_sets": [
+    {
+      "commit_sha": "3018a019e1806d65c7b9bf942994603f96c41170",
+      "timestamp": "2026-05-20T20:19:28Z",
+      "pcr0": "9f9b51f064067cb8dd3a4644e7d4587140a2ed282a068071bb8c803efdd1cb1b8a23e21d6c3e427d0759d1c851625cd1",
+      "pcr1": "4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493",
+      "pcr2": "041bce3144be90c337ac55d2dfb5643bfb9368029778b00ce2d9ee8ee0015c335193ae320b7f2d20325464fff6d39268"
+    }
+  ]
 }
