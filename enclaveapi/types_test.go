@@ -86,3 +86,55 @@ func TestAliasesShareUnderlyingType(t *testing.T) {
 	k.PublicKey = "PEM"
 	assert.Equal(t, "PEM", k.PublicKey)
 }
+
+// TestEnclaveArbitrationResponse_RoundTrip pins the wire shape of the
+// enclave→host arbitration response, including the per-bid resolved
+// revenue and decryption outcome field.
+func TestEnclaveArbitrationResponse_RoundTrip(t *testing.T) {
+	t.Parallel()
+	winnerID := uuid.NewString()
+	loserID := uuid.NewString()
+	orig := EnclaveArbitrationResponse{
+		Type:    "arbitration_response",
+		Success: true,
+		Message: "arbitrated 2 bids",
+		ExcludedBids: []core.ExcludedBid{
+			{BidID: "bad", Reason: core.ExclusionReasonMalformedBidID},
+		},
+		Bids: []ResolvedBid{
+			{ID: winnerID, Source: "WIN", Revenue: core.MicroDollars(5_000), Decrypted: true},
+			{ID: loserID, Source: "LOSE", Revenue: core.MicroDollars(100), Decrypted: false},
+		},
+		ProcessingTimeMS: 7,
+	}
+	data, err := json.Marshal(orig)
+	require.NoError(t, err)
+
+	var back EnclaveArbitrationResponse
+	require.NoError(t, json.Unmarshal(data, &back))
+	assert.Equal(t, orig.Type, back.Type)
+	assert.Equal(t, orig.Success, back.Success)
+	assert.Equal(t, orig.ExcludedBids, back.ExcludedBids)
+	require.Len(t, back.Bids, 2)
+	assert.Equal(t, orig.Bids, back.Bids)
+	assert.Equal(t, orig.ProcessingTimeMS, back.ProcessingTimeMS)
+}
+
+// TestResolvedBid_JSONTags pins the JSON field names a downstream
+// consumer reads.
+func TestResolvedBid_JSONTags(t *testing.T) {
+	t.Parallel()
+	data, err := json.Marshal(ResolvedBid{
+		ID:        "id-1",
+		Source:    "SRC",
+		Revenue:   core.MicroDollars(42),
+		Decrypted: true,
+	})
+	require.NoError(t, err)
+	var m map[string]any
+	require.NoError(t, json.Unmarshal(data, &m))
+	assert.Equal(t, "id-1", m["id"])
+	assert.Equal(t, "SRC", m["source"])
+	assert.Equal(t, float64(42), m["revenue_micros"])
+	assert.Equal(t, true, m["decrypted"])
+}

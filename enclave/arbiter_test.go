@@ -224,3 +224,36 @@ func TestArbitrate_DoesNotMutateInput(t *testing.T) {
 			"Arbitrate mutated caller slice at index %d", i)
 	}
 }
+
+// TestArbitrate_DecryptedFlag confirms Arbitrate marks each ranked bid as
+// decrypted when its sealed price opened, and as fallback otherwise
+// (missing ciphertext, wrong key, corrupted ciphertext).
+func TestArbitrate_DecryptedFlag(t *testing.T) {
+	t.Parallel()
+	priv, pub := newTestKeypair(t)
+	_, otherPub := newTestKeypair(t)
+	arb, err := NewArbiter(priv)
+	require.NoError(t, err)
+
+	sealedID := uuid.New()
+	wrongKeyID := uuid.New()
+	corruptID := uuid.New()
+	plainID := uuid.New()
+
+	resp := arb.Arbitrate([]core.Bid{
+		{ID: sealedID, Source: "S", EncryptedCPMDollars: sealRevenue(t, pub, core.DollarsPerMille(2.0))},
+		{ID: wrongKeyID, Source: "S", CleartextRevenue: core.DollarsPerMille(0.10).Dollars(), EncryptedCPMDollars: sealRevenue(t, otherPub, core.DollarsPerMille(9.0))},
+		{ID: corruptID, Source: "S", CleartextRevenue: core.DollarsPerMille(0.20).Dollars(), EncryptedCPMDollars: corruptCiphertext(t, sealRevenue(t, pub, core.DollarsPerMille(9.0)))},
+		{ID: plainID, Source: "S", CleartextRevenue: core.DollarsPerMille(0.30).Dollars()},
+	}, nil)
+
+	byID := map[uuid.UUID]core.ArbiterBid{}
+	for _, ab := range resp.Bids {
+		require.NotNil(t, ab.Bid)
+		byID[ab.Bid.ID] = ab
+	}
+	assert.True(t, byID[sealedID].Decrypted, "sealed bid should be decrypted")
+	assert.False(t, byID[wrongKeyID].Decrypted, "wrong-key bid should fall back")
+	assert.False(t, byID[corruptID].Decrypted, "corrupted bid should fall back")
+	assert.False(t, byID[plainID].Decrypted, "cleartext-only bid should fall back")
+}

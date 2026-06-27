@@ -57,6 +57,11 @@ type ArbiterBid struct {
 	// ciphertext when present and well-formed, else the cleartext
 	// fallback.
 	Revenue MicroDollars
+	// Decrypted is true when Revenue came from a successfully decrypted
+	// sealed price, and false when it came from the cleartext fallback
+	// (no ciphertext, malformed ciphertext, or ciphertext sealed for a
+	// different key).
+	Decrypted bool
 }
 
 // ArbitrateResponse is the boundary value the arbiter returns. Bids

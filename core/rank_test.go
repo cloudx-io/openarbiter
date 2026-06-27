@@ -112,3 +112,21 @@ func TestRankBids_ReturnsAllBids(t *testing.T) {
 	assert.Equal(t, MicroDollars(5_000_000), byID[mid.Bid.ID].Revenue)
 	assert.Equal(t, MicroDollars(10_000_000), byID[high.Bid.ID].Revenue)
 }
+
+// TestRankBids_PreservesDecryptedFlag confirms RankBids carries the
+// per-bid Decrypted flag through the shuffle+sort unchanged.
+func TestRankBids_PreservesDecryptedFlag(t *testing.T) {
+	t.Parallel()
+	sealed := resolved(10_000_000)
+	sealed.Decrypted = true
+	fallback := resolved(1_000_000)
+	fallback.Decrypted = false
+
+	resp := RankBids([]ArbiterBid{fallback, sealed}, nil)
+	require.Len(t, resp.Bids, 2)
+	// Winner first: highest revenue is the decrypted one.
+	assert.Equal(t, sealed.Bid.ID, resp.Bids[0].Bid.ID)
+	assert.True(t, resp.Bids[0].Decrypted)
+	assert.Equal(t, fallback.Bid.ID, resp.Bids[1].Bid.ID)
+	assert.False(t, resp.Bids[1].Decrypted)
+}
