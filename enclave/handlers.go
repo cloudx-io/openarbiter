@@ -72,8 +72,31 @@ func HandleArbitrationRequest(
 		Message:               fmt.Sprintf("arbitrated %d bids", len(req.Bids)),
 		AttestationCOSEBase64: cose.EncodeBase64(),
 		ExcludedBids:          excluded,
+		Bids:                  resolvedBids(resp.Bids),
 		ProcessingTimeMS:      time.Since(start).Milliseconds(),
 	}
+}
+
+// resolvedBids projects the ranked [core.ArbiterBid] slice into the
+// response's [enclaveapi.ResolvedBid] shape, preserving ranked order and
+// echoing each bid's Source and decryption outcome.
+func resolvedBids(ranked []core.ArbiterBid) []enclaveapi.ResolvedBid {
+	if len(ranked) == 0 {
+		return nil
+	}
+	out := make([]enclaveapi.ResolvedBid, 0, len(ranked))
+	for _, ab := range ranked {
+		if ab.Bid == nil {
+			continue
+		}
+		out = append(out, enclaveapi.ResolvedBid{
+			ID:        ab.Bid.ID.String(),
+			Source:    ab.Bid.Source,
+			Revenue:   ab.Revenue,
+			Decrypted: ab.Decrypted,
+		})
+	}
+	return out
 }
 
 // wireBidsToCoreBids converts the JSON-encodable [enclaveapi.WireBid]

@@ -42,14 +42,23 @@ type Arbiter struct {
 // decryption afresh. Callers ranking many bids should resolve each bid's
 // revenue exactly once via [Arbiter.Arbitrate].
 func (a *Arbiter) GetRevenue(b core.Bid) core.Currency {
+	revenue, _ := a.resolveRevenue(b)
+	return revenue
+}
+
+// resolveRevenue returns the bid's effective revenue along with whether
+// it came from a successful decryption (true) or the cleartext fallback
+// (false). It is the single resolution path shared by [Arbiter.GetRevenue]
+// and [Arbiter.Arbitrate].
+func (a *Arbiter) resolveRevenue(b core.Bid) (core.Currency, bool) {
 	revenue, err := decryptCPMDollars(a.priv, b.EncryptedCPMDollars)
 	if err == nil {
-		return revenue.Dollars()
+		return revenue.Dollars(), true
 	}
 	if b.CleartextRevenue == nil {
-		return core.ZeroDollars
+		return core.ZeroDollars, false
 	}
-	return b.CleartextRevenue
+	return b.CleartextRevenue, false
 }
 
 // Arbitrate resolves each input bid's revenue exactly once via
@@ -59,9 +68,11 @@ func (a *Arbiter) GetRevenue(b core.Bid) core.Currency {
 func (a *Arbiter) Arbitrate(bids []core.Bid, randSource core.RandSource) *core.ArbitrateResponse {
 	resolved := make([]core.ArbiterBid, len(bids))
 	for i := range bids {
+		revenue, decrypted := a.resolveRevenue(bids[i])
 		resolved[i] = core.ArbiterBid{
-			Bid:     &bids[i],
-			Revenue: a.GetRevenue(bids[i]).AsMicros(),
+			Bid:       &bids[i],
+			Revenue:   revenue.AsMicros(),
+			Decrypted: decrypted,
 		}
 	}
 	return core.RankBids(resolved, randSource)

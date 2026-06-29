@@ -96,6 +96,25 @@ type ArbiterBidWithoutSource struct {
 	Revenue core.MicroDollars `json:"revenue_micros"`
 }
 
+// ResolvedBid is the post-decryption view of a single ranked input bid
+// on the response wire. Unlike [ArbiterBidWithoutSource], it echoes the
+// opaque bid Source and the decryption outcome. ResolvedBid is a plain
+// response field only; it is NOT bound to the attestation user data.
+type ResolvedBid struct {
+	// ID is the wire bid's ID.
+	ID string `json:"id"`
+	// Source is the opaque provenance string echoed through from the
+	// input bid; the arbiter does not interpret it.
+	Source string `json:"source"`
+	// Revenue is the effective per-impression revenue used in ranking:
+	// the decrypted ciphertext when present and valid, else the
+	// cleartext fallback.
+	Revenue core.MicroDollars `json:"revenue_micros"`
+	// Decrypted is true when Revenue came from a successfully decrypted
+	// sealed price, and false when it came from the cleartext fallback.
+	Decrypted bool `json:"decrypted"`
+}
+
 // EnclaveArbitrationResponse is the enclave-→-host response envelope.
 type EnclaveArbitrationResponse struct {
 	Type                  string                `json:"type"`
@@ -106,8 +125,12 @@ type EnclaveArbitrationResponse struct {
 	// rank, alongside the reason. The same slice is bound to the
 	// attestation user data (see
 	// [ArbitrationAttestationUserData.ExcludedBids]).
-	ExcludedBids     []core.ExcludedBid `json:"excluded_bids,omitempty"`
-	ProcessingTimeMS int64              `json:"processing_time_ms"`
+	ExcludedBids []core.ExcludedBid `json:"excluded_bids,omitempty"`
+	// Bids lists every ranked input bid in ranked order (winner first)
+	// with its resolved revenue and decryption outcome. It is a plain
+	// response field and is NOT bound to the attestation user data.
+	Bids             []ResolvedBid `json:"bids,omitempty"`
+	ProcessingTimeMS int64         `json:"processing_time_ms"`
 }
 
 // ArbitrationAttestationUserData is the JSON shape embedded in the
