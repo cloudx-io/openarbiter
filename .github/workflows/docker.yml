@@ -29,7 +29,7 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v2
       - name: go build bin/tee-arbiter-enclave
         run: |
-          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -ldflags '-extldflags "-static"' -tags netgo -o ./bin/tee-arbiter-enclave ./cmd/enclave-server
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -ldflags '-extldflags "-static"' -tags netgo -o ./bin/tee-arbiter-enclave ./cmd/enclave-server
       - name: docker set build tag env vars
         run: |
           VERSION="0.0.0"
@@ -59,14 +59,16 @@ jobs:
             type=raw,value=${{ env.CLOUDX_VERSION }}-commit.${{ env.CLOUDX_COMMIT }}
             # "latest"
             type=raw,value=latest
+      # arm64 images are built via QEMU emulation on the amd64 runner.
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v4
         with:
-          platforms: linux/amd64
+          platforms: linux/arm64
       - uses: docker/build-push-action@v7
         with:
           context: .
           file: enclave-image/Dockerfile
-          platforms: linux/amd64
+          platforms: linux/arm64
           # Only push on main branch, not on PR branches
           push: ${{ github.event.workflow_run.head_branch == 'main' }}
           sbom: true
