@@ -41,18 +41,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  INSTANCE_TYPE: c5.xlarge
-  # Amazon Linux 2023 AMI
-  # Update periodically to latest AMI
-  #
-  # % aws ec2 describe-images \
-  #  --owners amazon \
-  #  --filters "Name=name,Values=al2023-ami-2023.*-x86_64" \
-  #  --filters "Name=state,Values=available" \
-  #  --query 'sort_by(Images, &CreationDate)[-1].[ImageId,Name,CreationDate]' \
-  #  --output table \
-  #  --region us-east-1
-  AMI_ID: ami-08d7aabbb50c2c24e 
+  INSTANCE_TYPE: c7g.xlarge
 
 concurrency:
   group: eif-build
@@ -102,6 +91,29 @@ jobs:
           # OIDC role for EIF building workflow (needs EC2 + ECR permissions)
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/eif-builder-workflow
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve builder AMI
+        id: builder-ami
+        run: |
+          # The EIF must be built on an instance of the same architecture as the
+          # enclave image (arm64), so resolve the latest AL2023 arm64 AMI at
+          # runtime instead of pinning an AMI ID that goes stale.
+          AMI_ID=$(aws ec2 describe-images \
+            --owners amazon \
+            --filters "Name=name,Values=al2023-ami-2023.*-arm64" \
+                      "Name=state,Values=available" \
+                      "Name=root-device-type,Values=ebs" \
+                      "Name=virtualization-type,Values=hvm" \
+            --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+            --output text)
+
+          if [ -z "${AMI_ID}" ] || [ "${AMI_ID}" = "None" ]; then
+            echo "::error::Failed to resolve AL2023 arm64 builder AMI"
+            exit 1
+          fi
+
+          echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
+          echo "Using arm64 builder ${{ env.INSTANCE_TYPE }} with AMI ${AMI_ID}"
       
       - name: Construct Docker image URI
         id: image-uri
@@ -181,7 +193,7 @@ jobs:
           # - Access EC2 instance metadata
 
           INSTANCE_ID=$(aws ec2 run-instances \
-            --image-id ${{ env.AMI_ID }} \
+            --image-id ${{ steps.builder-ami.outputs.ami_id }} \
             --instance-type ${{ env.INSTANCE_TYPE }} \
             --key-name "${{ steps.create-key.outputs.key_name }}" \
             --security-group-ids "${{ steps.security-group.outputs.security_group_id }}" \
@@ -276,6 +288,10 @@ jobs:
       
       - name: Install ORAS
         run: |
+          # This ORAS runs on the GitHub runner (ubuntu-latest = amd64) to push the
+          # already-built EIF artifact to ECR. It is the runner's architecture, not
+          # the target EIF's, so it stays amd64 even though the EIF is arm64 (built
+          # on the remote Nitro instance). Do not switch this to arm64.
           VERSION="1.1.0"
           curl -LO "https://github.com/oras-project/oras/releases/download/v${VERSION}/oras_${VERSION}_linux_amd64.tar.gz"
           tar -zxf oras_${VERSION}_*.tar.gz
