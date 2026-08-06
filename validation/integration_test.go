@@ -270,7 +270,7 @@ func TestIntegration_ArbitrationAttestation_ExcludedBid(t *testing.T) {
 }
 
 // TestIntegration_KeyAttestation_RoundTrip exercises the public-key
-// attestation path. Pins that the enclave's KeyAttestationUserData
+// attestation path. Pins that the enclave's ArbiterKeyAttestationUserData
 // (carrying the PEM) round-trips through ValidateKeyAttestation.
 func TestIntegration_KeyAttestation_RoundTrip(t *testing.T) {
 	t.Parallel()
@@ -283,11 +283,11 @@ func TestIntegration_KeyAttestation_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	pubPEM := string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: derBytes}))
 
-	userData := enclaveapi.KeyAttestationUserData{
-		KeyAlgorithm: "RSA-2048",
-		PublicKey:    pubPEM,
+	userData := enclaveapi.ArbiterKeyAttestationUserData{
 		AuctionToken: "arbitration-token-1",
 	}
+	userData.KeyAlgorithm = "RSA-2048"
+	userData.PublicKey = pubPEM
 	att := signAttestation(t, ca, fixedPCRs, now, userData)
 
 	t.Run("matching key passes", func(t *testing.T) {

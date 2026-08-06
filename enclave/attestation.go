@@ -114,7 +114,9 @@ func GenerateArbitrationAttestation(
 // GenerateKeyAttestation builds an attestation binding the arbiter's
 // public key to its PCRs. The token is an opaque correlator the host
 // echoes back into a subsequent arbitration request (see
-// [HandleKeyRequest]); it is not interpreted here.
+// [HandleKeyRequest]); it is not interpreted here. It is embedded in
+// the attested user_data and also returned on the unsigned
+// [enclaveapi.KeyWithAttestation] envelope.
 func GenerateKeyAttestation(
 	attester EnclaveAttester,
 	publicKey *rsa.PublicKey,
@@ -127,11 +129,11 @@ func GenerateKeyAttestation(
 	if err != nil {
 		return nil, err
 	}
-	userData := enclaveapi.KeyAttestationUserData{
-		KeyAlgorithm: "RSA-2048",
-		PublicKey:    pemStr,
+	userData := enclaveapi.ArbiterKeyAttestationUserData{
 		AuctionToken: token,
 	}
+	userData.KeyAlgorithm = "RSA-2048"
+	userData.PublicKey = pemStr
 	userDataBytes, err := json.Marshal(userData)
 	if err != nil {
 		return nil, fmt.Errorf("marshal key user data: %w", err)

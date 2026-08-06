@@ -21,17 +21,21 @@ func TestHandleKeyRequest_BindsKeyToAttestation(t *testing.T) {
 	resp, err := HandleKeyRequest(newFakeAttester(), km)
 	require.NoError(t, err)
 	assert.Equal(t, "key_response", resp.Type)
-	assert.NotEmpty(t, resp.AuctionToken)
+	// Envelope AuctionToken is deprecated on the openauction wire type but
+	// arbiter still emits it; pin that the correlator matches attested user_data.
+	token := resp.AuctionToken
+	assert.NotEmpty(t, token)
 	assert.Contains(t, resp.PublicKey, "PUBLIC KEY")
 
 	cose, err := resp.Attestation.Decompress()
 	require.NoError(t, err)
 	_, userDataBytes, err := cose.ParseAttestationDoc()
 	require.NoError(t, err)
-	var ud enclaveapi.KeyAttestationUserData
+	var ud enclaveapi.ArbiterKeyAttestationUserData
 	require.NoError(t, json.Unmarshal(userDataBytes, &ud))
 	assert.Equal(t, resp.PublicKey, ud.PublicKey)
-	assert.Equal(t, resp.AuctionToken, ud.AuctionToken)
+	assert.Equal(t, token, ud.AuctionToken)
+	assert.Contains(t, string(userDataBytes), token)
 }
 
 func TestHandleArbitrationRequest_RanksAndAttests(t *testing.T) {
