@@ -1,5 +1,5 @@
-github.com/cloudx-io/openauction v0.0.0-20260324112027-7b4b0d545233 h1:s747+lBvfcgW0I8XMBSMvqbtcQTf3VVI2LYAM4AObME=
-github.com/cloudx-io/openauction v0.0.0-20260324112027-7b4b0d545233/go.mod h1:TWyqvOMM4cVoH7pZ8ogWVApQNIUZpAYpYK0NsOiomhY=
+github.com/cloudx-io/openauction v0.0.0-20260805154906-0d0f81c32eec h1:1LLNu69zR0yTRZBaveNfYPjaLZrA6o/TFyZd9XHbIBM=
+github.com/cloudx-io/openauction v0.0.0-20260805154906-0d0f81c32eec/go.mod h1:b66wNYwNagLaK2xh7jj+Avnn8FLKJvSYTjsQ3CzYTZs=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/edgebitio/nitro-enclaves-sdk-go v1.0.1-0.20221110205443-8a5476ff3cc2 h1:pskJ0eUeBFqfoviPOHCiQ0FjgyAAkhmkSd7tQNqaK4U=

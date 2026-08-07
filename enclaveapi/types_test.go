@@ -87,6 +87,28 @@ func TestAliasesShareUnderlyingType(t *testing.T) {
 	assert.Equal(t, "PEM", k.PublicKey)
 }
 
+// TestArbiterKeyAttestationUserData_RoundTrip pins the attested key
+// user_data wire shape, including auction_token.
+func TestArbiterKeyAttestationUserData_RoundTrip(t *testing.T) {
+	t.Parallel()
+	orig := ArbiterKeyAttestationUserData{
+		AuctionToken: "token-1",
+	}
+	orig.KeyAlgorithm = "RSA-2048"
+	orig.PublicKey = "-----BEGIN PUBLIC KEY-----\nMIIB\n-----END PUBLIC KEY-----"
+
+	data, err := json.Marshal(orig)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"auction_token":"token-1"`)
+	assert.Contains(t, string(data), `"key_algorithm":"RSA-2048"`)
+
+	var back ArbiterKeyAttestationUserData
+	require.NoError(t, json.Unmarshal(data, &back))
+	assert.Equal(t, orig.KeyAlgorithm, back.KeyAlgorithm)
+	assert.Equal(t, orig.PublicKey, back.PublicKey)
+	assert.Equal(t, orig.AuctionToken, back.AuctionToken)
+}
+
 // TestEnclaveArbitrationResponse_RoundTrip pins the wire shape of the
 // enclave→host arbitration response, including the per-bid resolved
 // revenue and decryption outcome field.

@@ -63,7 +63,7 @@ func parseKeyAttestation(coseB64 enclaveapi.AttestationCOSEBase64) (*enclaveapi.
 	}
 	doc := &enclaveapi.KeyAttestationDoc{AttestationDoc: attestationDoc}
 	if len(userDataBytes) > 0 {
-		var ud enclaveapi.KeyAttestationUserData
+		var ud enclaveapi.ArbiterKeyAttestationUserData
 		if err := json.Unmarshal(userDataBytes, &ud); err != nil {
 			return nil, fmt.Errorf("parse user data: %w", err)
 		}

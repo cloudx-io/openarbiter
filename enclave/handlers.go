@@ -12,9 +12,10 @@ import (
 
 // HandleKeyRequest produces a [enclaveapi.KeyResponse] binding the
 // enclave's public key to its PCRs via a fresh attestation. The opaque
-// token returned in [enclaveapi.KeyWithAttestation.AuctionToken] is a
-// correlator the host may echo back into a subsequent arbitration
-// request.
+// token is placed both in the attested user_data
+// ([enclaveapi.ArbiterKeyAttestationUserData.AuctionToken]) and on the
+// unsigned [enclaveapi.KeyWithAttestation.AuctionToken] envelope so the
+// host may echo it into a subsequent arbitration request.
 func HandleKeyRequest(attester EnclaveAttester, km *KeyManager) (*enclaveapi.KeyResponse, error) {
 	if km == nil {
 		return nil, fmt.Errorf("nil key manager")

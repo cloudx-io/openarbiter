@@ -46,23 +46,31 @@ type PCRs = oaenclaveapi.PCRs
 // projects.
 type EncryptedBidPrice = oaenclaveapi.EncryptedBidPrice
 
-// KeyAttestationUserData is the user-data payload embedded in a key
-// attestation: the enclave's public key plus the algorithm naming it.
-type KeyAttestationUserData = oaenclaveapi.KeyAttestationUserData
-
-// KeyAttestationDoc is the attestation document for a public-key
-// attestation.
-type KeyAttestationDoc = oaenclaveapi.KeyAttestationDoc
-
 // KeyWithAttestation is the arbiter's response to a public-key request:
 // the PEM-encoded public key, the COSE attestation binding it to the
-// enclave's PCRs, and an arbitration token for replay protection.
+// enclave's PCRs, and an opaque correlator token on the unsigned envelope.
 type KeyWithAttestation = oaenclaveapi.KeyWithAttestation
 
 // KeyResponse is the wire envelope around [KeyWithAttestation].
 type KeyResponse = oaenclaveapi.KeyResponse
 
 // ─── Arbiter-specific wire types ───────────────────────────────────────
+
+// ArbiterKeyAttestationUserData is the user_data embedded in an arbiter
+// key attestation. It embeds openauction's key fields and keeps
+// auction_token in the attested payload so arbiter enclaves and
+// validators retain the historical wire shape.
+type ArbiterKeyAttestationUserData struct {
+	oaenclaveapi.KeyAttestationUserData
+	AuctionToken string `json:"auction_token"`
+}
+
+// KeyAttestationDoc is the attestation document for an arbiter public-key
+// attestation, carrying [ArbiterKeyAttestationUserData].
+type KeyAttestationDoc struct {
+	AttestationDoc
+	UserData *ArbiterKeyAttestationUserData `json:"user_data"`
+}
 
 // WireBid is the JSON-encodable form of a bid as it appears on the
 // host←→enclave wire. It carries the same fields as [core.Bid] except

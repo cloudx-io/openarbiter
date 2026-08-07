@@ -21,17 +21,27 @@ func TestHandleKeyRequest_BindsKeyToAttestation(t *testing.T) {
 	resp, err := HandleKeyRequest(newFakeAttester(), km)
 	require.NoError(t, err)
 	assert.Equal(t, "key_response", resp.Type)
-	assert.NotEmpty(t, resp.AuctionToken)
 	assert.Contains(t, resp.PublicKey, "PUBLIC KEY")
+
+	// Read auction_token from the envelope JSON rather than the deprecated
+	// Go field so staticcheck SA1019 stays quiet while still pinning the wire.
+	envBytes, err := json.Marshal(resp.KeyWithAttestation)
+	require.NoError(t, err)
+	var envelope struct {
+		AuctionToken string `json:"auction_token"`
+	}
+	require.NoError(t, json.Unmarshal(envBytes, &envelope))
+	assert.NotEmpty(t, envelope.AuctionToken)
 
 	cose, err := resp.Attestation.Decompress()
 	require.NoError(t, err)
 	_, userDataBytes, err := cose.ParseAttestationDoc()
 	require.NoError(t, err)
-	var ud enclaveapi.KeyAttestationUserData
+	var ud enclaveapi.ArbiterKeyAttestationUserData
 	require.NoError(t, json.Unmarshal(userDataBytes, &ud))
 	assert.Equal(t, resp.PublicKey, ud.PublicKey)
-	assert.Equal(t, resp.AuctionToken, ud.AuctionToken)
+	assert.Equal(t, envelope.AuctionToken, ud.AuctionToken)
+	assert.Contains(t, string(userDataBytes), envelope.AuctionToken)
 }
 
 func TestHandleArbitrationRequest_RanksAndAttests(t *testing.T) {

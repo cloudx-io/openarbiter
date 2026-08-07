@@ -138,7 +138,7 @@ func TestGenerateKeyAttestation_RoundTrip(t *testing.T) {
 
 	_, userDataBytes, err := cose.ParseAttestationDoc()
 	require.NoError(t, err)
-	var ud enclaveapi.KeyAttestationUserData
+	var ud enclaveapi.ArbiterKeyAttestationUserData
 	require.NoError(t, json.Unmarshal(userDataBytes, &ud))
 	assert.Equal(t, "RSA-2048", ud.KeyAlgorithm)
 	assert.Equal(t, "token-abc", ud.AuctionToken)
