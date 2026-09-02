@@ -58,10 +58,12 @@ jobs:
     name: Build EIF on Nitro EC2
     runs-on: ubuntu-latest
     # Publication is gated in docker.yml: it publishes only for a push to this
-    # repository's default branch, and every Docker Build run is bound to this
-    # repository, so an automated run's image source is not re-checked here. A
-    # workflow_dispatch run measures whatever image_tag it is given, outside
-    # that gate.
+    # repository's default branch, so an automated run measures an image from
+    # that path. The trigger is coarser than the gate: head_* on a Docker Build
+    # run always reports the default-branch tip whatever triggered it, so a run
+    # started by a pull request's build measures that tip, and the [skip-build]
+    # check below is what stops it in the common case. A workflow_dispatch run
+    # measures the image_tag it is given.
     # The [skip-build] marker is matched with startsWith, not contains: a squash
     # merge puts the entire PR description in the commit body, so contains also
     # matches any PR whose description merely mentions the marker in prose. The
