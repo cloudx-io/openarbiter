@@ -18,14 +18,29 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # ratchet:actions/setup-go@v7
         with:
           go-version: "1.26.5"
+      - name: docker set publish env vars
+        env:
+          # Trigger metadata is bound into the environment rather than interpolated
+          # into the script body; head_branch is a free-form ref name.
+          TRIGGER_EVENT: ${{ github.event.workflow_run.event }}
+          TRIGGER_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          # Builds publish only for a push to this repository's default branch. A
+          # push run is always on the repository's own ref, so event plus branch
+          # identify it without a repository check.
+          PUBLISH_IMAGE=false
+          if [ "${TRIGGER_EVENT}" = "push" ] && [ "${TRIGGER_BRANCH}" = "main" ]; then
+            PUBLISH_IMAGE=true
+          fi
+          echo "PUBLISH_IMAGE=${PUBLISH_IMAGE}" >> "$GITHUB_ENV"
       - name: Configure AWS credentials
-        if: github.event.workflow_run.head_branch == 'main'
+        if: env.PUBLISH_IMAGE == 'true'
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # ratchet:aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-actions-ecr-push
           aws-region: us-east-1
       - name: Login to Amazon ECR
-        if: github.event.workflow_run.head_branch == 'main'
+        if: env.PUBLISH_IMAGE == 'true'
         uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # ratchet:aws-actions/amazon-ecr-login@v2
       - name: go build bin/tee-arbiter-enclave
         run: |
@@ -38,6 +53,12 @@ jobs:
           COMMIT="${SHA}${DIRTY}"
           echo "CLOUDX_VERSION=${VERSION}" >> $GITHUB_ENV
           echo "CLOUDX_COMMIT=${COMMIT}" >> $GITHUB_ENV
+          # Image tags and the revision label name the commit that was checked
+          # out and built. github.sha is not used: for a workflow_run it is the
+          # default-branch tip, which need not be the commit under build.
+          COMMIT_SHA="$(git rev-parse HEAD)"
+          echo "COMMIT_SHA=${COMMIT_SHA}" >> "$GITHUB_ENV"
+          echo "COMMIT_SHA_SHORT=${COMMIT_SHA:0:7}" >> "$GITHUB_ENV"
       - name: docker set metadata
         id: dockermetadata
         # https://github.com/docker/metadata-action
@@ -50,11 +71,12 @@ jobs:
             org.opencontainers.image.description=CloudX Nitro Enclave for arbitration
             org.opencontainers.image.vendor=cloudx.io
             org.opencontainers.image.source=https://github.com/cloudx-io/openarbiter
+            org.opencontainers.image.revision=${{ env.COMMIT_SHA }}
           tags: |
             # short sha of the commit
-            type=sha,prefix=,suffix=,format=short
+            type=raw,value=${{ env.COMMIT_SHA_SHORT }},priority=100
             # long sha of the commit
-            type=sha,prefix=,suffix=,format=long
+            type=raw,value=${{ env.COMMIT_SHA }},priority=100
             # our version tag, like "0.0.0-commit.ABCDEF01"
             type=raw,value=${{ env.CLOUDX_VERSION }}-commit.${{ env.CLOUDX_COMMIT }}
             # "latest"
@@ -69,8 +91,7 @@ jobs:
           context: .
           file: enclave-image/Dockerfile
           platforms: linux/arm64
-          # Only push on main branch, not on PR branches
-          push: ${{ github.event.workflow_run.head_branch == 'main' }}
+          push: ${{ env.PUBLISH_IMAGE == 'true' }}
           sbom: true
           provenance: mode=max
           tags: ${{ steps.dockermetadata.outputs.tags }}

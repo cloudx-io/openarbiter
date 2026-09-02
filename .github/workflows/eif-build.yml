@@ -42,6 +42,12 @@ on:
 env:
   AWS_REGION: us-east-1
   INSTANCE_TYPE: c7g.xlarge
+  # AL2023 release the builder runs on, pinned by AMI name so every EIF is
+  # measured on the OS, kernel and nitro-cli the TEE fleet image is built from.
+  # Bump it together with the fleet image. AL2023 marks each release deprecated
+  # about 90 days after publication and the lookup excludes deprecated images,
+  # so a pin left past that point fails the build rather than running on one.
+  BUILDER_AMI_NAME: al2023-ami-2023.12.20260817.0-kernel-6.18-arm64
 
 concurrency:
   group: eif-build
@@ -51,6 +57,13 @@ jobs:
   build-eif:
     name: Build EIF on Nitro EC2
     runs-on: ubuntu-latest
+    # Publication is gated in docker.yml: it publishes only for a push to this
+    # repository's default branch, so an automated run measures an image from
+    # that path. The trigger is coarser than the gate: head_* on a Docker Build
+    # run always reports the default-branch tip whatever triggered it, so a run
+    # started by a pull request's build measures that tip, and the [skip-build]
+    # check below is what stops it in the common case. A workflow_dispatch run
+    # measures the image_tag it is given.
     # The [skip-build] marker is matched with startsWith, not contains: a squash
     # merge puts the entire PR description in the commit body, so contains also
     # matches any PR whose description merely mentions the marker in prose. The
@@ -100,19 +113,17 @@ jobs:
         id: builder-ami
         run: |
           # The EIF must be built on an instance of the same architecture as the
-          # enclave image (arm64), so resolve the latest AL2023 arm64 AMI at
-          # runtime instead of pinning an AMI ID that goes stale.
+          # enclave image (arm64). The AMI is resolved by name rather than ID so
+          # the pin is region-independent.
           AMI_ID=$(aws ec2 describe-images \
             --owners amazon \
-            --filters "Name=name,Values=al2023-ami-2023.*-arm64" \
+            --filters "Name=name,Values=${BUILDER_AMI_NAME}" \
                       "Name=state,Values=available" \
-                      "Name=root-device-type,Values=ebs" \
-                      "Name=virtualization-type,Values=hvm" \
-            --query 'sort_by(Images, &CreationDate)[-1].ImageId' \
+            --query 'Images[0].ImageId' \
             --output text)
 
           if [ -z "${AMI_ID}" ] || [ "${AMI_ID}" = "None" ]; then
-            echo "::error::Failed to resolve AL2023 arm64 builder AMI"
+            echo "::error::Failed to resolve builder AMI ${BUILDER_AMI_NAME}"
             exit 1
           fi
 
