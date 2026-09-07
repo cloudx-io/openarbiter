@@ -1,6 +1,6 @@
 module github.com/cloudx-io/openarbiter
 
-go 1.26
+go 1.27
 
 require (
 	github.com/cloudx-io/openauction v0.0.0-20260812214016-a621e06f88df

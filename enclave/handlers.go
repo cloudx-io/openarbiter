@@ -35,9 +35,11 @@ func HandleKeyRequest(attester EnclaveAttester, km *KeyManager) (*enclaveapi.Key
 	}
 	return &enclaveapi.KeyResponse{
 		KeyWithAttestation: enclaveapi.KeyWithAttestation{
-			PublicKey:    pemStr,
-			Attestation:  gz,
-			AuctionToken: token,
+			PublicKey:   pemStr,
+			Attestation: gz,
+			// Deprecated upstream, but still populated: older clients
+			// expect a per-request token on the envelope.
+			AuctionToken: token, //nolint:staticcheck
 		},
 		Type: "key_response",
 	}, nil
