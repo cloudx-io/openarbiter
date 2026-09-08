@@ -166,11 +166,18 @@ func parseCPULine(line string) (*cpuTicks, error) {
 }
 
 func sampleCPUUsage(path string, interval time.Duration) (float64, error) {
+	return sampleCPUUsageBetween(path, func() { time.Sleep(interval) })
+}
+
+// sampleCPUUsageBetween reads path, calls between, then reads path again.
+// The seam lets tests swap the file contents deterministically instead of
+// racing a sleep; production passes a sleep via [sampleCPUUsage].
+func sampleCPUUsageBetween(path string, between func()) (float64, error) {
 	t1, err := readCPUTicks(path)
 	if err != nil {
 		return 0, err
 	}
-	time.Sleep(interval)
+	between()
 	t2, err := readCPUTicks(path)
 	if err != nil {
 		return 0, err
