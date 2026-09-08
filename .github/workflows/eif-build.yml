@@ -102,24 +102,31 @@ jobs:
           echo "commit_short=${COMMIT_SHA:0:7}" >> $GITHUB_OUTPUT
           echo "Building EIF for commit: ${COMMIT_SHA}"
 
-      - name: Construct Docker image URI
-        id: image-uri
+      - name: Validate build inputs
+        id: build-inputs
         env:
+          LC_ALL: C
           INPUT_IMAGE_TAG: ${{ github.event.inputs.image_tag }}
           COMMIT_SHA: ${{ steps.set-sha.outputs.commit_sha }}
-          ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
         run: |
-          # Bind dispatch input as data and validate it before AWS authentication.
+          # Bind dispatch inputs as data and validate them before AWS authentication.
           # Automated builds use the triggering commit SHA as the image tag.
           IMAGE_TAG="${INPUT_IMAGE_TAG:-${COMMIT_SHA}}"
 
-          # Match the whole tag, including newlines, before logging or exporting it.
-          # The same allowlist keeps the tag safe inside the remote SSH command.
+          # Match the whole tag before logging or exporting it. Do not echo invalid input.
           if [[ ! "${IMAGE_TAG}" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$ ]]; then
             echo "::error::Invalid image tag (must be 1-128 chars of [A-Za-z0-9._-], not starting with . or -)"
             exit 1
           fi
 
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Construct Docker image URI
+        id: image-uri
+        env:
+          IMAGE_TAG: ${{ steps.build-inputs.outputs.image_tag }}
+          ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+        run: |
           IMAGE_URI="${ECR_REGISTRY}/cloudx-io/openarbiter/enclave-image:${IMAGE_TAG}"
           echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
           echo "Docker image: ${IMAGE_URI}"
