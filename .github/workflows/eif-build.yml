@@ -1,5 +1,5 @@
 name: Build EIF
-run-name: Build EIF - commit ${{ github.event.workflow_run.head_sha || github.sha }} from image ${{ github.event.inputs.image_tag || 'auto' }}
+run-name: Build EIF - commit ${{ github.event.workflow_run.head_sha || github.sha }}
 
 # This workflow builds Enclave Image Files (EIFs) for AWS Nitro Enclaves
 # EIFs can only be built on Nitro-compatible EC2 instances, so this workflow:
@@ -102,6 +102,35 @@ jobs:
           echo "commit_short=${COMMIT_SHA:0:7}" >> $GITHUB_OUTPUT
           echo "Building EIF for commit: ${COMMIT_SHA}"
 
+      - name: Validate build inputs
+        id: build-inputs
+        env:
+          LC_ALL: C
+          INPUT_IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+          COMMIT_SHA: ${{ steps.set-sha.outputs.commit_sha }}
+        run: |
+          # Bind dispatch inputs as data and validate them before AWS authentication.
+          # Automated builds use the triggering commit SHA as the image tag.
+          IMAGE_TAG="${INPUT_IMAGE_TAG:-${COMMIT_SHA}}"
+
+          # Match the whole tag before logging or exporting it. Do not echo invalid input.
+          if [[ ! "${IMAGE_TAG}" =~ ^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$ ]]; then
+            echo "::error::Invalid image tag (must be 1-128 chars of [A-Za-z0-9._-], not starting with . or -)"
+            exit 1
+          fi
+
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Construct Docker image URI
+        id: image-uri
+        env:
+          IMAGE_TAG: ${{ steps.build-inputs.outputs.image_tag }}
+          ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+        run: |
+          IMAGE_URI="${ECR_REGISTRY}/cloudx-io/openarbiter/enclave-image:${IMAGE_TAG}"
+          echo "image_uri=${IMAGE_URI}" >> "$GITHUB_OUTPUT"
+          echo "Docker image: ${IMAGE_URI}"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # ratchet:aws-actions/configure-aws-credentials@v6
         with:
@@ -129,24 +158,6 @@ jobs:
 
           echo "ami_id=${AMI_ID}" >> "$GITHUB_OUTPUT"
           echo "Using arm64 builder ${{ env.INSTANCE_TYPE }} with AMI ${AMI_ID}"
-
-      - name: Construct Docker image URI
-        id: image-uri
-        run: |
-          # For workflow_run: use commit SHA from triggering workflow
-          # For workflow_dispatch: use user-provided image tag
-          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
-            IMAGE_TAG="${{ github.event.inputs.image_tag }}"
-            echo "Using manually specified image tag: ${IMAGE_TAG}"
-          else
-            COMMIT_SHA="${{ steps.set-sha.outputs.commit_sha }}"
-            IMAGE_TAG="${COMMIT_SHA}"
-            echo "Using commit-based image tag: ${IMAGE_TAG}"
-          fi
-
-          IMAGE_URI="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/cloudx-io/openarbiter/enclave-image:${IMAGE_TAG}"
-          echo "image_uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
-          echo "Docker image: ${IMAGE_URI}"
 
       - name: Create EC2 key pair
         id: create-key
@@ -276,14 +287,16 @@ jobs:
               'sudo bash ~/scripts/setup-nitro-instance.sh'
 
       - name: Build EIF
+        env:
+          IMAGE_URI: ${{ steps.image-uri.outputs.image_uri }}
         run: |
           ssh -i /tmp/eif-builder-key.pem \
               -o StrictHostKeyChecking=no \
               ec2-user@${{ steps.launch-instance.outputs.public_ip }} \
               "sudo bash ~/scripts/build-eif-ci.sh \
-                    '${{ steps.image-uri.outputs.image_uri }}' \
+                    '${IMAGE_URI}' \
                     '/tmp/arbiter.eif' \
-                    '${{ env.AWS_REGION }}'"
+                    '${AWS_REGION}'"
 
       - name: Download EIF and measurements
         run: |
