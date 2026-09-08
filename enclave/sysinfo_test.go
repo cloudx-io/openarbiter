@@ -59,15 +59,11 @@ func TestSampleCPUUsage_Computes(t *testing.T) {
 	t.Parallel()
 	dir := t.TempDir()
 	path := writeFile(t, dir, "stat", "cpu  10 0 0 90 0 0 0 0\n")
-	// Override the file content between the two samples by rewriting it
-	// inside a goroutine racing the cpuSampleInterval window.
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		_ = os.WriteFile(path, []byte("cpu  60 0 0 140 0 0 0 0\n"), 0o600)
-	}()
-	pct, err := sampleCPUUsage(path, cpuSampleInterval)
-	<-done
+	// Swap in the second sample strictly between the two reads. The hook
+	// runs on the sampling goroutine, so no read can race the rewrite.
+	pct, err := sampleCPUUsageBetween(path, func() {
+		writeFile(t, dir, "stat", "cpu  60 0 0 140 0 0 0 0\n")
+	})
 	require.NoError(t, err)
 	// total_delta = 200-100 = 100, idle_delta = 140-90 = 50, pct = 50.
 	assert.InDelta(t, 50.0, pct, 0.01)
