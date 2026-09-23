@@ -19,7 +19,6 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # ratchet:actions/setup-go@v7
         with:
           go-version: "1.27.0"
-          cache: false
       - name: docker set publish env vars
         env:
           # Trigger metadata is bound into the environment rather than interpolated
