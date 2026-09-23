@@ -25,8 +25,15 @@ import (
 
 const (
 	vsockPort            = 5000
-	readDeadline         = 30 * time.Second
 	defaultMaxWorkersEnv = "ENCLAVE_MAX_WORKERS"
+)
+
+// Connection deadlines. The write deadline starts once the request is handled,
+// so a peer that stops reading releases its worker slot. Variables so tests can
+// shorten them.
+var (
+	readDeadline  = 30 * time.Second
+	writeDeadline = 30 * time.Second
 )
 
 func main() {
@@ -96,7 +103,10 @@ func handleConnection(conn net.Conn, km *enclave.KeyManager) {
 		}
 	}()
 
-	_ = conn.SetReadDeadline(time.Now().Add(readDeadline))
+	if err := conn.SetReadDeadline(time.Now().Add(readDeadline)); err != nil {
+		log.Printf("ERROR: set read deadline: %v", err)
+		return
+	}
 
 	var buf bytes.Buffer
 	if _, err := io.Copy(&buf, conn); err != nil {
@@ -114,6 +124,10 @@ func handleConnection(conn net.Conn, km *enclave.KeyManager) {
 	log.Printf("INFO: received request type: %s", base.Type)
 
 	response := dispatch(base.Type, buf.Bytes(), km)
+	if err := conn.SetWriteDeadline(time.Now().Add(writeDeadline)); err != nil {
+		log.Printf("ERROR: set write deadline: %v", err)
+		return
+	}
 	if err := json.NewEncoder(conn).Encode(response); err != nil {
 		log.Printf("ERROR: encode response: %v", err)
 	} else {
