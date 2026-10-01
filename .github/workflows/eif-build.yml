@@ -447,6 +447,10 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-eif
     if: github.ref == 'refs/heads/main'
+    # The checkout and push authenticate with the GitHub App token, so
+    # GITHUB_TOKEN needs no write scope.
+    permissions:
+      contents: read
     env:
       GH_APP_CLIENT_ID: 'Iv23li0CF0SJXIuRq9kS'
 
