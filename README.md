@@ -61,3 +61,9 @@ The Dockerfile copies a prebuilt binary from `./bin/`, so build the binary first
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -ldflags '-extldflags "-static"' -tags netgo -o ./bin/tee-arbiter-enclave ./cmd/enclave-server
 docker build --platform linux/arm64 -f enclave-image/Dockerfile -t arbiter-enclave .
 ```
+
+On an amd64 Linux host, the image's `RUN` steps need arm64 emulation. Register it before `docker build`, as the workflow does with `docker/setup-qemu-action`:
+
+```bash
+docker run --rm --privileged tonistiigi/binfmt --install arm64
+```
