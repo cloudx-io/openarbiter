@@ -34,7 +34,7 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Docker image tag to use (e.g., sha-abc1234, latest). Image must exist in ECR.'
+        description: 'Docker image tag to use: a short (7-character) or full commit SHA, or latest. Image must exist in ECR.'
         required: true
         default: 'latest'
         type: string
