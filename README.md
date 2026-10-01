@@ -55,8 +55,9 @@ go test ./...
 
 ### Building the Enclave
 
-The enclave binary can be built using the Dockerfile:
+The Dockerfile copies a prebuilt binary from `./bin/`, so build the binary first. These commands match the build in `.github/workflows/docker.yml`:
 
 ```bash
-docker build -f enclave-image/Dockerfile -t arbiter-enclave .
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -a -ldflags '-extldflags "-static"' -tags netgo -o ./bin/tee-arbiter-enclave ./cmd/enclave-server
+docker build --platform linux/arm64 -f enclave-image/Dockerfile -t arbiter-enclave .
 ```
