@@ -21,7 +21,7 @@ import (
 )
 
 // syntheticCA bundles the ECDSA P-384 root CA + leaf signing cert used to
-// mint attestations for tests. The root pool produced by [poolForRoot]
+// mint attestations for tests. The root pool produced by [syntheticCA.rootPool]
 // is what callers pass into the validator's Roots override.
 type syntheticCA struct {
 	rootCert    *x509.Certificate
