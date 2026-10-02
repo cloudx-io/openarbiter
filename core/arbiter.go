@@ -78,7 +78,6 @@ type ArbitrateResponse struct {
 // [RankBids]. Production callers pass nil to use [math/rand]; tests can
 // inject a deterministic source.
 type RandSource interface {
-	Intn(n int) int
 	Shuffle(n int, swap func(i, j int))
 }
 
