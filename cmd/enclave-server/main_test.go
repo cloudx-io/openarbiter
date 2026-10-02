@@ -70,3 +70,26 @@ func TestHandleConnection_ClosesWithoutReadingWhenReadDeadlineFails(t *testing.T
 	_, err := server.Write([]byte("x"))
 	assert.Error(t, err)
 }
+
+func TestGetMaxWorkers(t *testing.T) {
+	for _, tc := range []struct {
+		value   string
+		want    int
+		wantErr bool
+	}{
+		{value: "-1", wantErr: true},
+		{value: "0", wantErr: true},
+		{value: "1", want: 1},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			t.Setenv(defaultMaxWorkersEnv, tc.value)
+			got, err := getMaxWorkers()
+			if tc.wantErr {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}

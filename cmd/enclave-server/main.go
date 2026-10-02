@@ -43,7 +43,7 @@ func main() {
 	}
 	log.Printf("INFO: KeyManager initialized")
 
-	maxWorkers, err := getRequiredEnvInt(defaultMaxWorkersEnv)
+	maxWorkers, err := getMaxWorkers()
 	if err != nil {
 		log.Fatalf("ERROR: %v", err)
 	}
@@ -184,6 +184,19 @@ func sysInfoOrNil() *enclave.SystemInfo {
 		return nil
 	}
 	return info
+}
+
+// getMaxWorkers reads ENCLAVE_MAX_WORKERS and rejects values below 1: a
+// negative size panics in make, and zero rejects every connection.
+func getMaxWorkers() (int, error) {
+	n, err := getRequiredEnvInt(defaultMaxWorkersEnv)
+	if err != nil {
+		return 0, err
+	}
+	if n < 1 {
+		return 0, fmt.Errorf("%s must be at least 1, got %d", defaultMaxWorkersEnv, n)
+	}
+	return n, nil
 }
 
 func getRequiredEnvInt(key string) (int, error) {
