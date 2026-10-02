@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	oaenclaveapi "github.com/cloudx-io/openauction/enclaveapi"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -73,18 +74,32 @@ func TestArbitrationAttestationUserData_RoundTrip(t *testing.T) {
 	assert.Equal(t, orig.Timestamp.UTC(), back.Timestamp.UTC())
 }
 
-// TestAliasesShareUnderlyingType pins the contract that AttestationDoc,
-// PCRs, and KeyWithAttestation are the same types as their openauction
-// counterparts (assignable in both directions without conversion).
+// TestAliasesShareUnderlyingType pins the contract that every re-export
+// in types.go is the same type as its openauction counterpart: each pair
+// below is assigned in both directions without conversion, so this file
+// stops compiling if an alias becomes a defined type. The arbiter's key
+// attestation user data is a separate type on purpose
+// ([ArbiterKeyAttestationUserData]) and is not re-exported.
 func TestAliasesShareUnderlyingType(t *testing.T) {
 	t.Parallel()
-	var pcrs PCRs
-	pcrs.ImageFileHash = "abc"
-	assert.Equal(t, "abc", pcrs.ImageFileHash)
-
-	var k KeyWithAttestation
-	k.PublicKey = "PEM"
-	assert.Equal(t, "PEM", k.PublicKey)
+	_ = func(v AttestationCOSE) oaenclaveapi.AttestationCOSE { return v }
+	_ = func(v oaenclaveapi.AttestationCOSE) AttestationCOSE { return v }
+	_ = func(v AttestationCOSEBase64) oaenclaveapi.AttestationCOSEBase64 { return v }
+	_ = func(v oaenclaveapi.AttestationCOSEBase64) AttestationCOSEBase64 { return v }
+	_ = func(v AttestationCOSEURLBase64) oaenclaveapi.AttestationCOSEURLBase64 { return v }
+	_ = func(v oaenclaveapi.AttestationCOSEURLBase64) AttestationCOSEURLBase64 { return v }
+	_ = func(v AttestationCOSEGzip) oaenclaveapi.AttestationCOSEGzip { return v }
+	_ = func(v oaenclaveapi.AttestationCOSEGzip) AttestationCOSEGzip { return v }
+	_ = func(v AttestationDoc) oaenclaveapi.AttestationDoc { return v }
+	_ = func(v oaenclaveapi.AttestationDoc) AttestationDoc { return v }
+	_ = func(v PCRs) oaenclaveapi.PCRs { return v }
+	_ = func(v oaenclaveapi.PCRs) PCRs { return v }
+	_ = func(v EncryptedBidPrice) oaenclaveapi.EncryptedBidPrice { return v }
+	_ = func(v oaenclaveapi.EncryptedBidPrice) EncryptedBidPrice { return v }
+	_ = func(v KeyWithAttestation) oaenclaveapi.KeyWithAttestation { return v }
+	_ = func(v oaenclaveapi.KeyWithAttestation) KeyWithAttestation { return v }
+	_ = func(v KeyResponse) oaenclaveapi.KeyResponse { return v }
+	_ = func(v oaenclaveapi.KeyResponse) KeyResponse { return v }
 }
 
 // TestArbiterKeyAttestationUserData_RoundTrip pins the attested key
