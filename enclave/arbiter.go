@@ -62,7 +62,7 @@ func (a *Arbiter) resolveRevenue(b core.Bid) (core.Currency, bool) {
 }
 
 // Arbitrate resolves each input bid's revenue exactly once via
-// [Arbiter.GetRevenue] and hands the resulting [core.ArbiterBid] slice to
+// resolveRevenue and hands the resulting [core.ArbiterBid] slice to
 // [core.RankBids]. Does not mutate bids. randSource is forwarded to
 // [core.RankBids]; pass nil to use [math/rand] for tie-breaking.
 func (a *Arbiter) Arbitrate(bids []core.Bid, randSource core.RandSource) *core.ArbitrateResponse {
