@@ -55,6 +55,14 @@ func HandleArbitrationRequest(
 	req enclaveapi.EnclaveArbitrationRequest,
 ) enclaveapi.EnclaveArbitrationResponse {
 	start := time.Now()
+	if km == nil {
+		return enclaveapi.EnclaveArbitrationResponse{
+			Type:             "arbitration_response",
+			Success:          false,
+			Message:          "nil key manager",
+			ProcessingTimeMS: time.Since(start).Milliseconds(),
+		}
+	}
 
 	arb, _ := NewArbiter(km.PrivateKey())
 	coreBids, excluded := wireBidsToCoreBids(req.Bids)

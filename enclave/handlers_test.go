@@ -159,3 +159,18 @@ func TestHandleArbitrationRequest_PopulatesResolvedBids(t *testing.T) {
 	assert.NotContains(t, string(userDataBytes), "PLAIN")
 	assert.NotContains(t, string(userDataBytes), "decrypted")
 }
+
+func TestHandleArbitrationRequest_NilKeyManager(t *testing.T) {
+	t.Parallel()
+	req := enclaveapi.EnclaveArbitrationRequest{
+		Type:      "arbitration_request",
+		RequestID: "req-nil-km",
+		Bids:      []enclaveapi.WireBid{{ID: uuid.NewString(), Source: "A", CleartextRevenue: core.MicroDollars(1_000_000)}},
+		Timestamp: time.Now().UTC(),
+	}
+
+	resp := HandleArbitrationRequest(newFakeAttester(), nil, req)
+	assert.False(t, resp.Success)
+	assert.Equal(t, "arbitration_response", resp.Type)
+	assert.Equal(t, "nil key manager", resp.Message)
+}
