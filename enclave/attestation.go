@@ -112,11 +112,11 @@ func GenerateArbitrationAttestation(
 }
 
 // GenerateKeyAttestation builds an attestation binding the arbiter's
-// public key to its PCRs. The token is an opaque correlator the host
-// echoes back into a subsequent arbitration request (see
-// [HandleKeyRequest]); it is not interpreted here. It is embedded in
-// the attested user_data and also returned on the unsigned
-// [enclaveapi.KeyWithAttestation] envelope.
+// public key to its PCRs. The token is an opaque value kept for wire
+// compatibility; it is not interpreted here. It is embedded in the
+// attested user_data, and [HandleKeyRequest] also returns it on the
+// unsigned [enclaveapi.KeyWithAttestation] envelope. No arbitration
+// request carries it back.
 func GenerateKeyAttestation(
 	attester EnclaveAttester,
 	publicKey *rsa.PublicKey,
