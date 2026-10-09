@@ -1,6 +1,8 @@
 # compiled commands
 /validate-arbitration
 /validation/cmd/validate-arbitration/validate-arbitration
+/enclave-server
+/cmd/enclave-server/enclave-server
 
 # enclave binary built by the README and docker.yml
 /bin/

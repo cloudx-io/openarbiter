@@ -48,7 +48,7 @@ type EncryptedBidPrice = oaenclaveapi.EncryptedBidPrice
 
 // KeyWithAttestation is the arbiter's response to a public-key request:
 // the PEM-encoded public key, the COSE attestation binding it to the
-// enclave's PCRs, and an opaque correlator token on the unsigned envelope.
+// enclave's PCRs, and a deprecated auction token kept for wire compatibility.
 type KeyWithAttestation = oaenclaveapi.KeyWithAttestation
 
 // KeyResponse is the wire envelope around [KeyWithAttestation].
