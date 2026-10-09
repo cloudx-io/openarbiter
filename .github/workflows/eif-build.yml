@@ -34,9 +34,9 @@ on:
   workflow_dispatch:
     inputs:
       image_tag:
-        description: 'Docker image tag to use: a short (7-character) or full commit SHA, or latest. Image must exist in ECR.'
-        required: true
-        default: 'latest'
+        description: 'Optional Docker image tag to use. Leave blank to use the checked-out commit SHA.'
+        required: false
+        default: ''
         type: string
 
 env:
@@ -63,7 +63,8 @@ jobs:
     # run always reports the default-branch tip whatever triggered it, so a run
     # started by a pull request's build measures that tip, and the [skip-build]
     # check below is what stops it in the common case. A workflow_dispatch run
-    # measures the image_tag it is given.
+    # measures the image_tag it is given; when that is set, the EIF is not
+    # published to ECR and update-pcrs is skipped.
     # The [skip-build] marker is matched with startsWith, not contains: a squash
     # merge puts the entire PR description in the commit body, so contains also
     # matches any PR whose description merely mentions the marker in prose. The
@@ -365,7 +366,18 @@ jobs:
               ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
 
       - name: Push EIF to ECR
+        env:
+          INPUT_IMAGE_TAG: ${{ github.event.inputs.image_tag }}
         run: |
+          # The ECR tags name the checked-out commit, so an EIF built from a
+          # dispatched image_tag would be published under a commit it was not
+          # built from. Such builds keep only the workflow artifact.
+          if [ -n "${INPUT_IMAGE_TAG}" ]; then
+            echo "::notice::image_tag was set, so the EIF was not pushed to ECR; download it from the workflow artifact"
+            echo "EIF not pushed to ECR because image_tag was set; it is available as the workflow artifact only." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
           COMMIT_SHA="${{ steps.set-sha.outputs.commit_sha }}"
           COMMIT_SHORT="${{ steps.set-sha.outputs.commit_short }}"
           REGISTRY="${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com"
@@ -452,7 +464,13 @@ jobs:
     name: Update PCR validation file
     runs-on: ubuntu-latest
     needs: build-eif
-    if: github.ref == 'refs/heads/main'
+    # image_tag overrides are barred from this path: PCRs are recorded under the
+    # checked-out commit SHA, so a dispatch that measures an arbitrary image_tag would
+    # otherwise append that image's measurements to the published allowlist as if
+    # they belonged to main. Only auto-tagged builds (tag == commit) may update pcrs.json.
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      github.event.inputs.image_tag == ''
     # The checkout and push authenticate with the GitHub App token, so
     # GITHUB_TOKEN needs no write scope.
     permissions:

@@ -3,9 +3,8 @@
 // arbitration entry point that decrypts those bids and ranks them.
 //
 // In production, the arbiter's private key is generated inside the
-// enclave and never leaves it. [Arbiter] is the in-process counterpart
-// used both by tests and by the host process while the enclave deployment
-// is still being built out.
+// enclave and never leaves it. [Arbiter] holds that key and runs the
+// arbitration; it is used by the enclave handlers and by tests.
 package enclave
 
 import (
