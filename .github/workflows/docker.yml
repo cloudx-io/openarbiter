@@ -53,8 +53,8 @@ jobs:
           SHA="$(git rev-parse --short HEAD || echo 'unknown')"
           DIRTY="$(git diff --no-ext-diff --quiet --exit-code HEAD || echo '.dirty')"
           COMMIT="${SHA}${DIRTY}"
-          echo "CLOUDX_VERSION=${VERSION}" >> $GITHUB_ENV
-          echo "CLOUDX_COMMIT=${COMMIT}" >> $GITHUB_ENV
+          echo "CLOUDX_VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "CLOUDX_COMMIT=${COMMIT}" >> "$GITHUB_ENV"
           # Image tags and the revision label name the commit that was checked
           # out and built. github.sha is not used: for a workflow_run it is the
           # default-branch tip, which need not be the commit under build.
