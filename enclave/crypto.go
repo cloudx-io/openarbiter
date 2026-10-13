@@ -15,8 +15,8 @@ import (
 
 // decryptCPMDollars opens a [core.EncryptedRevenue] under priv and
 // parses the inner JSON payload back into a [core.DollarsPerMille].
-// Returns a distinct error for each failure mode so operators have a
-// signal when ciphertext is being silently rejected.
+// Returns a distinct error per failure mode for tests and debugging; the
+// [Arbiter] discards it and surfaces only [core.ArbiterBid.Decrypted].
 func decryptCPMDollars(priv *rsa.PrivateKey, ct *core.EncryptedRevenue) (core.DollarsPerMille, error) {
 	if priv == nil {
 		return 0, core.ErrNoKey
