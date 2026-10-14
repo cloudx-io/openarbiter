@@ -3,8 +3,6 @@ package enclave
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 )
 
@@ -51,9 +49,5 @@ func (km *KeyManager) PrivateKey() *rsa.PrivateKey {
 // PEM block, the format the arbiter publishes via
 // [enclaveapi.KeyWithAttestation.PublicKey].
 func (km *KeyManager) PublicKeyPEM() (string, error) {
-	derBytes, err := x509.MarshalPKIXPublicKey(km.PublicKey)
-	if err != nil {
-		return "", fmt.Errorf("marshal public key: %w", err)
-	}
-	return string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: derBytes})), nil
+	return publicKeyToPEM(km.PublicKey)
 }

@@ -71,7 +71,10 @@ func main() {
 	}
 
 	if *outputFormat == "json" {
-		_ = json.NewEncoder(os.Stdout).Encode(result)
+		if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
+			fmt.Fprintf(os.Stderr, "encode result: %v\n", err)
+			os.Exit(2)
+		}
 	} else {
 		fmt.Printf("Valid: %t\n", result.IsValid())
 		fmt.Println("Details:")
