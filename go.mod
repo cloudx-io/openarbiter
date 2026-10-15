@@ -3,7 +3,7 @@ module github.com/cloudx-io/openarbiter
 go 1.27
 
 require (
-	github.com/cloudx-io/openauction v0.0.0-20260812214016-a621e06f88df
+	github.com/cloudx-io/openauction v0.0.0-20261015162644-6894ac2467d7
 	github.com/edgebitio/nitro-enclaves-sdk-go v1.0.1-0.20221110205443-8a5476ff3cc2
 	github.com/fxamacker/cbor/v2 v2.9.4
 	github.com/google/uuid v1.6.0
