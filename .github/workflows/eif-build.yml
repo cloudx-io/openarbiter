@@ -59,10 +59,8 @@ jobs:
     runs-on: ubuntu-latest
     # Publication is gated in docker.yml: it publishes only for a push to this
     # repository's default branch, so an automated run measures an image from
-    # that path. The trigger is coarser than the gate: head_* on a Docker Build
-    # run always reports the default-branch tip whatever triggered it, so a run
-    # started by a pull request's build measures that tip, and the [skip-build]
-    # check below is what stops it in the common case. A workflow_dispatch run
+    # that path. head_* on a Docker Build run always reports the default-branch
+    # tip, so docker.yml runs only for Go runs on main. A workflow_dispatch run
     # measures the image_tag it is given; when that is set, the EIF is not
     # published to ECR and update-pcrs is skipped.
     # The [skip-build] marker is matched with startsWith, not contains: a squash
