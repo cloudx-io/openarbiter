@@ -11,8 +11,8 @@ import (
 )
 
 // validateCommonAttestation performs the platform-level checks shared by
-// every arbitration validation: PCR matching, certificate-chain
-// verification, and COSE signature verification.
+// every attestation validation (arbitration and key): PCR matching,
+// certificate-chain verification, and COSE signature verification.
 //
 // knownPCRs lists the PCR sets the validator trusts; pass the result of
 // [LoadPCRsFromFile] or the literal slice for a fixed deployment.
