@@ -113,6 +113,27 @@ func TestHandleArbitrationRequest_RecordsMalformedBidIDsAsExcluded(t *testing.T)
 		"attestation should bind malformed bid as excluded")
 }
 
+// TestHandleArbitrationRequest_MessageCountsRankedBids pins the success
+// message to the ranked bids: a bid excluded for a malformed ID is not
+// counted.
+func TestHandleArbitrationRequest_MessageCountsRankedBids(t *testing.T) {
+	t.Parallel()
+	km, err := NewKeyManager()
+	require.NoError(t, err)
+
+	req := enclaveapi.EnclaveArbitrationRequest{
+		RequestID: "req-count",
+		Bids: []enclaveapi.WireBid{
+			{ID: "not-a-uuid", Source: "A", CleartextRevenue: core.MicroDollars(100)},
+			{ID: uuid.NewString(), Source: "B", CleartextRevenue: core.MicroDollars(200)},
+		},
+	}
+	resp := HandleArbitrationRequest(newFakeAttester(), km, req)
+	require.True(t, resp.Success, "message=%s", resp.Message)
+	require.Len(t, resp.ExcludedBids, 1)
+	assert.Equal(t, "arbitrated 1 bids", resp.Message)
+}
+
 // TestHandleArbitrationRequest_PopulatesResolvedBids confirms the response
 // carries every ranked bid in ranked order (winner first) with its
 // Source, resolved revenue, and decryption outcome, and that this new

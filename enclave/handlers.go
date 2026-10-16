@@ -80,7 +80,7 @@ func HandleArbitrationRequest(
 	return enclaveapi.EnclaveArbitrationResponse{
 		Type:                  "arbitration_response",
 		Success:               true,
-		Message:               fmt.Sprintf("arbitrated %d bids", len(req.Bids)),
+		Message:               fmt.Sprintf("arbitrated %d bids", len(coreBids)),
 		AttestationCOSEBase64: cose.EncodeBase64(),
 		ExcludedBids:          excluded,
 		Bids:                  resolvedBids(resp.Bids),
