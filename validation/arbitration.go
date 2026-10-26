@@ -4,6 +4,8 @@ import (
 	"crypto/x509"
 	"fmt"
 
+	"github.com/google/uuid"
+
 	"github.com/cloudx-io/openarbiter/core"
 	"github.com/cloudx-io/openarbiter/enclaveapi"
 )
@@ -34,7 +36,10 @@ type ArbitrationValidationInput struct {
 	// BidID is the caller's bid; the validator checks the attestation
 	// either lists its hash among the participants (Expectation =
 	// ExpectIncluded) or records it as excluded under the expected
-	// reason (Expectation = ExpectExcluded).
+	// reason (Expectation = ExpectExcluded). On the included path an ID
+	// that parses as a UUID (any form [uuid.Parse] accepts) is compared
+	// in its canonical lowercase hyphenated form, which is what the
+	// enclave attests; on the excluded path it is compared as given.
 	BidID string
 	// BidRevenue is the per-impression revenue the caller believes the
 	// arbiter saw for its bid (post-decryption). Ignored when
@@ -133,7 +138,7 @@ func validateBidHash(input *ArbitrationValidationInput, doc *enclaveapi.Arbitrat
 		result.ValidationDetails = append(result.ValidationDetails, "Bid hash nonce missing from attestation")
 		return false
 	}
-	computed := core.ComputeBidHash(input.BidID, input.BidRevenue, nonce)
+	computed := core.ComputeBidHash(canonicalBidID(input.BidID), input.BidRevenue, nonce)
 	for _, h := range doc.UserData.BidHashes {
 		if h == computed {
 			result.ValidationDetails = append(result.ValidationDetails,
@@ -144,6 +149,18 @@ func validateBidHash(input *ArbitrationValidationInput, doc *enclaveapi.Arbitrat
 	result.ValidationDetails = append(result.ValidationDetails,
 		fmt.Sprintf("Bid hash NOT found in attestation. Computed: %s (over %d attested hashes)", computed, len(doc.UserData.BidHashes)))
 	return false
+}
+
+// canonicalBidID returns id in the form the enclave attests for a
+// ranked bid: the enclave parses wire IDs with [uuid.Parse] and hashes
+// and reports the parsed UUID's String(). An ID that does not parse is
+// returned unchanged; the enclave excludes such bids rather than
+// ranking them.
+func canonicalBidID(id string) string {
+	if u, err := uuid.Parse(id); err == nil {
+		return u.String()
+	}
+	return id
 }
 
 func validateRequestHash(input *ArbitrationValidationInput, doc *enclaveapi.ArbitrationAttestationDoc, result *ArbitrationValidationResult) bool {
@@ -164,7 +181,7 @@ func validateRequestHash(input *ArbitrationValidationInput, doc *enclaveapi.Arbi
 
 func validateWinner(input *ArbitrationValidationInput, doc *enclaveapi.ArbitrationAttestationDoc, result *ArbitrationValidationResult) bool {
 	winner := doc.UserData.Winner
-	actuallyWon := winner != nil && winner.ID == input.BidID
+	actuallyWon := winner != nil && winner.ID == canonicalBidID(input.BidID)
 	if input.IsWinner == actuallyWon {
 		switch {
 		case actuallyWon:
