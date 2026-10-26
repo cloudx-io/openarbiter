@@ -269,6 +269,84 @@ func TestIntegration_ArbitrationAttestation_ExcludedBid(t *testing.T) {
 	})
 }
 
+// TestIntegration_ArbitrationAttestation_BidIDForms pins that the
+// included path accepts any UUID form the enclave's parser accepts:
+// the enclave attests the canonical lowercase hyphenated form, so the
+// validator canonicalises a parseable caller ID before hashing and
+// comparing it with the winner. An ID that does not parse is used as
+// given.
+func TestIntegration_ArbitrationAttestation_BidIDForms(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC().Truncate(time.Second)
+	ca := newSyntheticCA(t, now.Add(-time.Hour), now.Add(time.Hour))
+
+	requestID := uuid.NewString()
+	winnerBidID := "8f14e45f-ceea-467a-9575-1c3e2b6a7d90"
+	loserBidID := "c9f0f895-fb98-4b91-a0e1-d5b7f2a3c4e6"
+	rawBidID := "not-a-uuid"
+	winnerRevenue := core.MicroDollars(2_500_000)
+	loserRevenue := core.MicroDollars(500_000)
+	rawRevenue := core.MicroDollars(100_000)
+
+	bidNonce := randomNonce(t)
+	requestNonce := randomNonce(t)
+
+	userData := enclaveapi.ArbitrationAttestationUserData{
+		RequestID: requestID,
+		BidHashes: []string{
+			core.ComputeBidHash(winnerBidID, winnerRevenue, bidNonce),
+			core.ComputeBidHash(loserBidID, loserRevenue, bidNonce),
+			core.ComputeBidHash(rawBidID, rawRevenue, bidNonce),
+		},
+		BidHashNonce: bidNonce,
+		RequestHash:  core.ComputeRequestHash(requestID, requestNonce),
+		RequestNonce: requestNonce,
+		Winner: &enclaveapi.ArbiterBidWithoutSource{
+			ID:      winnerBidID,
+			Revenue: winnerRevenue,
+		},
+		Timestamp: now,
+	}
+	att := signAttestation(t, ca, fixedPCRs, now, userData)
+
+	tests := []struct {
+		name        string
+		bidID       string
+		revenue     core.MicroDollars
+		isWinner    bool
+		wantBidHash bool
+		wantWinner  bool
+	}{
+		{"canonical winner", winnerBidID, winnerRevenue, true, true, true},
+		{"uppercase winner", "8F14E45F-CEEA-467A-9575-1C3E2B6A7D90", winnerRevenue, true, true, true},
+		{"braced winner", "{8f14e45f-ceea-467a-9575-1c3e2b6a7d90}", winnerRevenue, true, true, true},
+		{"urn:uuid winner", "urn:uuid:8f14e45f-ceea-467a-9575-1c3e2b6a7d90", winnerRevenue, true, true, true},
+		{"unhyphenated winner", "8f14e45fceea467a95751c3e2b6a7d90", winnerRevenue, true, true, true},
+		{"uppercase loser", "C9F0F895-FB98-4B91-A0E1-D5B7F2A3C4E6", loserRevenue, false, true, true},
+		{"uppercase loser claiming win", "C9F0F895-FB98-4B91-A0E1-D5B7F2A3C4E6", loserRevenue, true, true, false},
+		{"unparsable ID matches as given", rawBidID, rawRevenue, false, true, true},
+		{"unparsable ID is not case-folded", "NOT-A-UUID", rawRevenue, false, false, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			result, err := ValidateArbitrationAttestation(&ArbitrationValidationInput{
+				AttestationCOSEGzip: att.COSEGzip,
+				KnownPCRs:           []PCRSet{fixedPCRs},
+				RequestID:           requestID,
+				BidID:               tc.bidID,
+				BidRevenue:          tc.revenue,
+				IsWinner:            tc.isWinner,
+				Roots:               ca.rootPool(),
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantBidHash, result.BidHashValid, "details: %v", result.ValidationDetails)
+			assert.Equal(t, tc.wantWinner, result.WinnerValid, "details: %v", result.ValidationDetails)
+			assert.Equal(t, tc.wantBidHash && tc.wantWinner, result.IsValid(), "details: %v", result.ValidationDetails)
+		})
+	}
+}
+
 // TestIntegration_KeyAttestation_RoundTrip exercises the public-key
 // attestation path. Pins that the enclave's ArbiterKeyAttestationUserData
 // (carrying the PEM) round-trips through ValidateKeyAttestation.
