@@ -8,7 +8,8 @@ set -euo pipefail
 #
 # Requirements:
 #   - Amazon Linux 2023 or compatible OS
-#   - Nitro-compatible EC2 instance type (c5, m5, r5, etc.)
+#   - Graviton (arm64) Nitro-enabled EC2 instance type (e.g. c7g), matching
+#     the arm64 enclave image
 #   - Root or sudo access
 #
 # This script installs:
