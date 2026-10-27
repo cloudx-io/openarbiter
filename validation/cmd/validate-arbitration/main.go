@@ -14,6 +14,11 @@
 //	                     [-format text|json] \
 //	                     <attestation-cose-gzip>
 //
+// <attestation-cose-gzip> is the attestation envelope, gzipped and
+// base64url-encoded. The arbitration response carries it as standard
+// base64 in attestation_cose_base64; convert that value with
+// enclaveapi.AttestationCOSEBase64.CompressGzip first.
+//
 // Supplying -exclusion-reason switches the validator into the exclusion
 // path: it asserts the bid is recorded in the attestation's excluded
 // list under the supplied reason rather than among the participants.
