@@ -26,8 +26,10 @@ const (
 // ArbitrationValidationInput contains everything a caller needs to
 // verify that its bid was faithfully arbitrated.
 type ArbitrationValidationInput struct {
-	// AttestationCOSEGzip is the gzipped attestation envelope shipped
-	// alongside the arbitration response.
+	// AttestationCOSEGzip is the attestation envelope, gzipped and
+	// base64url-encoded. The arbitration response carries it as standard
+	// base64 in attestation_cose_base64; convert that value with
+	// [enclaveapi.AttestationCOSEBase64.CompressGzip] first.
 	AttestationCOSEGzip enclaveapi.AttestationCOSEGzip
 	// KnownPCRs lists the PCR measurement sets the validator trusts.
 	KnownPCRs []PCRSet
