@@ -32,23 +32,11 @@ type Arbiter struct {
 	priv *rsa.PrivateKey
 }
 
-// GetRevenue returns the bid's effective revenue: the decrypted
-// ciphertext when one is present and decryption succeeds, otherwise the
-// cleartext amount. Decryption failures fall back to cleartext silently
-// — the bid still participates in arbitration.
-//
-// GetRevenue is not memoized — each call performs the hybrid-RSA
-// decryption afresh. Callers ranking many bids should resolve each bid's
-// revenue exactly once via [Arbiter.Arbitrate].
-func (a *Arbiter) GetRevenue(b core.Bid) core.Currency {
-	revenue, _ := a.resolveRevenue(b)
-	return revenue
-}
-
 // resolveRevenue returns the bid's effective revenue along with whether
 // it came from a successful decryption (true) or the cleartext fallback
-// (false). It is the single resolution path shared by [Arbiter.GetRevenue]
-// and [Arbiter.Arbitrate].
+// (false): the decrypted ciphertext when one is present and decryption
+// succeeds, otherwise the cleartext amount. Decryption failures fall back
+// to cleartext silently — the bid still participates in arbitration.
 func (a *Arbiter) resolveRevenue(b core.Bid) (core.Currency, bool) {
 	revenue, err := decryptCPMDollars(a.priv, b.EncryptedCPMDollars)
 	if err == nil {
