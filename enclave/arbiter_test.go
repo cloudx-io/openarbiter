@@ -99,25 +99,38 @@ func TestNewArbiter_NilKey(t *testing.T) {
 	assert.Nil(t, arb.priv)
 }
 
-// ─── Arbiter.GetRevenue ─────────────────────────────────
+// ─── Arbiter.Arbitrate: revenue resolution ──────────────
 
-func TestArbiter_GetRevenue_PlaintextBid(t *testing.T) {
+// arbitrateOne runs a single bid through Arbitrate and returns the
+// resulting winner, which carries the bid's resolved revenue.
+func arbitrateOne(t *testing.T, arb *Arbiter, bid core.Bid) core.ArbiterBid {
+	t.Helper()
+	resp := arb.Arbitrate([]core.Bid{bid}, nil)
+	require.NotNil(t, resp.Winner)
+	return *resp.Winner
+}
+
+func TestArbitrate_Revenue_PlaintextBid(t *testing.T) {
 	t.Parallel()
 	arb, _ := NewArbiter(nil)
 	bid := core.Bid{ID: uuid.New(), Source: "TEST", CleartextRevenue: core.DollarsPerMille(2.0).Dollars()}
-	assert.Equal(t, expectMicros(2.0), arb.GetRevenue(bid).AsMicros())
+	got := arbitrateOne(t, arb, bid)
+	assert.Equal(t, expectMicros(2.0), got.Revenue)
+	assert.False(t, got.Decrypted)
 }
 
-func TestArbiter_GetRevenue_EncryptedBid(t *testing.T) {
+func TestArbitrate_Revenue_EncryptedBid(t *testing.T) {
 	t.Parallel()
 	priv, pub := newTestKeypair(t)
 	arb, err := NewArbiter(priv)
 	require.NoError(t, err)
 	bid := newEncryptedBid(sealRevenue(t, pub, core.DollarsPerMille(1.5)), 0)
-	assert.Equal(t, expectMicros(1.5), arb.GetRevenue(bid).AsMicros())
+	got := arbitrateOne(t, arb, bid)
+	assert.Equal(t, expectMicros(1.5), got.Revenue)
+	assert.True(t, got.Decrypted)
 }
 
-func TestArbiter_GetRevenue_WrongKey_FallsBackToPlaintext(t *testing.T) {
+func TestArbitrate_Revenue_WrongKey_FallsBackToPlaintext(t *testing.T) {
 	t.Parallel()
 	_, pubA := newTestKeypair(t)
 	privB, _ := newTestKeypair(t)
@@ -125,20 +138,24 @@ func TestArbiter_GetRevenue_WrongKey_FallsBackToPlaintext(t *testing.T) {
 	require.NoError(t, err)
 
 	bid := newEncryptedBid(sealRevenue(t, pubA, core.DollarsPerMille(1.5)), core.DollarsPerMille(0.10))
-	assert.Equal(t, expectMicros(0.10), arb.GetRevenue(bid).AsMicros(),
+	got := arbitrateOne(t, arb, bid)
+	assert.Equal(t, expectMicros(0.10), got.Revenue,
 		"unable to decrypt → fall back to cleartext")
+	assert.False(t, got.Decrypted)
 }
 
-func TestArbiter_GetRevenue_NoKey_FallsBackToPlaintext(t *testing.T) {
+func TestArbitrate_Revenue_NoKey_FallsBackToPlaintext(t *testing.T) {
 	t.Parallel()
 	_, pub := newTestKeypair(t)
 	arb, _ := NewArbiter(nil)
 
 	bid := newEncryptedBid(sealRevenue(t, pub, core.DollarsPerMille(1.5)), core.DollarsPerMille(0.25))
-	assert.Equal(t, expectMicros(0.25), arb.GetRevenue(bid).AsMicros())
+	got := arbitrateOne(t, arb, bid)
+	assert.Equal(t, expectMicros(0.25), got.Revenue)
+	assert.False(t, got.Decrypted)
 }
 
-func TestArbiter_GetRevenue_CorruptedCiphertext_FallsBackToPlaintext(t *testing.T) {
+func TestArbitrate_Revenue_CorruptedCiphertext_FallsBackToPlaintext(t *testing.T) {
 	t.Parallel()
 	priv, pub := newTestKeypair(t)
 	arb, err := NewArbiter(priv)
@@ -146,30 +163,36 @@ func TestArbiter_GetRevenue_CorruptedCiphertext_FallsBackToPlaintext(t *testing.
 
 	ct := corruptCiphertext(t, sealRevenue(t, pub, core.DollarsPerMille(1.5)))
 	bid := newEncryptedBid(ct, core.DollarsPerMille(0.50))
-	assert.Equal(t, expectMicros(0.50), arb.GetRevenue(bid).AsMicros())
+	got := arbitrateOne(t, arb, bid)
+	assert.Equal(t, expectMicros(0.50), got.Revenue)
+	assert.False(t, got.Decrypted)
 }
 
-func TestArbiter_GetRevenue_NonJSONPlaintext(t *testing.T) {
+func TestArbitrate_Revenue_NonJSONPlaintext(t *testing.T) {
 	t.Parallel()
 	priv, pub := newTestKeypair(t)
 	arb, err := NewArbiter(priv)
 	require.NoError(t, err)
 
 	bid := newEncryptedBid(sealRaw(t, pub, []byte("not-a-number")), core.DollarsPerMille(0.75))
-	assert.Equal(t, expectMicros(0.75), arb.GetRevenue(bid).AsMicros())
+	got := arbitrateOne(t, arb, bid)
+	assert.Equal(t, expectMicros(0.75), got.Revenue)
+	assert.False(t, got.Decrypted)
 }
 
-func TestArbiter_GetRevenue_EncryptedTakesPrecedenceOverPlaintext(t *testing.T) {
+func TestArbitrate_Revenue_EncryptedTakesPrecedenceOverPlaintext(t *testing.T) {
 	t.Parallel()
 	priv, pub := newTestKeypair(t)
 	arb, err := NewArbiter(priv)
 	require.NoError(t, err)
 
 	bid := newEncryptedBid(sealRevenue(t, pub, core.DollarsPerMille(1.5)), core.DollarsPerMille(99))
-	assert.Equal(t, expectMicros(1.5), arb.GetRevenue(bid).AsMicros())
+	got := arbitrateOne(t, arb, bid)
+	assert.Equal(t, expectMicros(1.5), got.Revenue)
+	assert.True(t, got.Decrypted)
 }
 
-func TestArbiter_GetRevenue_NilCleartextOnDecryptFailure(t *testing.T) {
+func TestArbitrate_Revenue_NilCleartextOnDecryptFailure(t *testing.T) {
 	t.Parallel()
 	priv, pub := newTestKeypair(t)
 	arb, err := NewArbiter(priv)
@@ -180,7 +203,9 @@ func TestArbiter_GetRevenue_NilCleartextOnDecryptFailure(t *testing.T) {
 		Source:              "TEST",
 		EncryptedCPMDollars: corruptCiphertext(t, sealRevenue(t, pub, core.DollarsPerMille(1.5))),
 	}
-	assert.Equal(t, core.MicroDollars(0), arb.GetRevenue(bid).AsMicros())
+	got := arbitrateOne(t, arb, bid)
+	assert.Equal(t, core.MicroDollars(0), got.Revenue)
+	assert.False(t, got.Decrypted)
 }
 
 // ─── Arbiter.Arbitrate ──────────────────────────────────
