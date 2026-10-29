@@ -1,5 +1,7 @@
 package core
 
+import "math"
+
 // ZeroDollars is the zero value of [MicroDollars]. It exists so callers
 // returning an absent revenue have an obvious sentinel to reach for.
 const ZeroDollars = MicroDollars(0)
@@ -27,9 +29,10 @@ func (md MicroDollars) AsMicros() MicroDollars {
 // Dollars is a per-impression revenue expressed in dollars.
 type Dollars float64
 
-// AsMicros converts a [Dollars] amount into [MicroDollars].
+// AsMicros converts a [Dollars] amount into [MicroDollars], rounded to the
+// nearest micro so binary float error (e.g. 2.01 CPM) does not lose one.
 func (d Dollars) AsMicros() MicroDollars {
-	return MicroDollars(d * 1_000_000)
+	return MicroDollars(math.Round(float64(d) * 1_000_000))
 }
 
 // DollarsPerMille is a revenue rate expressed in dollars per thousand
