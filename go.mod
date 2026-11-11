@@ -2,7 +2,7 @@ module github.com/cloudx-io/openarbiter
 
 go 1.27
 
-toolchain go1.27.3
+toolchain go1.27.4
 
 require (
 	github.com/cloudx-io/openauction v0.0.0-20261015162644-6894ac2467d7
