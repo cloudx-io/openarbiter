@@ -47,6 +47,9 @@ type ArbitrationValidationInput struct {
 	// arbiter saw for its bid (post-decryption). Ignored when
 	// Expectation is [ExpectExcluded].
 	BidRevenue core.MicroDollars
+	// ExpectedCoefficientHundredths optionally verifies the included bid's multiplier.
+	// Use 100 to require neutral weighting. Excluded bids have no coefficient.
+	ExpectedCoefficientHundredths *int
 	// Expectation selects between the included and excluded validation
 	// paths. Defaults to [ExpectIncluded].
 	Expectation BidExpectation
@@ -69,6 +72,9 @@ type ArbitrationValidationInput struct {
 func ValidateArbitrationAttestation(input *ArbitrationValidationInput) (*ArbitrationValidationResult, error) {
 	if input == nil {
 		return nil, fmt.Errorf("nil input")
+	}
+	if v := input.ExpectedCoefficientHundredths; v != nil && (!core.ValidCoefficientHundredths(*v) || input.Expectation == ExpectExcluded) {
+		return nil, fmt.Errorf("expected coefficient requires an included bid and a value from 1 to 500")
 	}
 	if len(input.KnownPCRs) == 0 {
 		return nil, fmt.Errorf("no PCR sets configured")
@@ -141,8 +147,29 @@ func validateBidHash(input *ArbitrationValidationInput, doc *enclaveapi.Arbitrat
 		return false
 	}
 	computed := core.ComputeBidHash(canonicalBidID(input.BidID), input.BidRevenue, nonce)
-	for _, h := range doc.UserData.BidHashes {
+	coefficients := doc.UserData.BidCoefficientHundredths
+	if coefficients != nil {
+		if len(coefficients) != len(doc.UserData.BidHashes) {
+			result.ValidationDetails = append(result.ValidationDetails, "Coefficient count differs from bid hash count")
+			return false
+		}
+		for _, c := range coefficients {
+			if !core.ValidCoefficientHundredths(c) {
+				result.ValidationDetails = append(result.ValidationDetails, "Invalid coefficient in attested bid list")
+				return false
+			}
+		}
+	}
+	for i, h := range doc.UserData.BidHashes {
 		if h == computed {
+			coefficient := 100
+			if coefficients != nil {
+				coefficient = coefficients[i]
+			}
+			if want := input.ExpectedCoefficientHundredths; want != nil && coefficient != *want {
+				result.ValidationDetails = append(result.ValidationDetails, fmt.Sprintf("Expected coefficient %d, attested %d", *want, coefficient))
+				return false
+			}
 			result.ValidationDetails = append(result.ValidationDetails,
 				fmt.Sprintf("Bid hash found in attestation: %s", computed))
 			return true

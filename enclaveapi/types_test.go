@@ -175,3 +175,19 @@ func TestResolvedBid_JSONTags(t *testing.T) {
 	assert.Equal(t, float64(42), m["revenue_micros"])
 	assert.Equal(t, true, m["decrypted"])
 }
+
+func TestWireBidCoefficientDecoding(t *testing.T) {
+	t.Parallel()
+	for raw, want := range map[string]int{"1": 1, "500": 500, "501": 100, "9223372036854775808": 100, "-9223372036854775809": 100, "null": 0} {
+		var req EnclaveArbitrationRequest
+		err := json.Unmarshal([]byte(`{"bids":[{"id":"bid","pricing_coefficient_hundredths":`+raw+`}]}`), &req)
+		require.NoError(t, err, raw)
+		require.Len(t, req.Bids, 1)
+		assert.Equal(t, "bid", req.Bids[0].ID)
+		assert.Equal(t, want, req.Bids[0].PricingCoefficientHundredths, raw)
+	}
+	for _, raw := range []string{`"200"`, "1.5", "1e2", "false"} {
+		var bid WireBid
+		assert.Error(t, json.Unmarshal([]byte(`{"pricing_coefficient_hundredths":`+raw+`}`), &bid), raw)
+	}
+}

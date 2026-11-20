@@ -1,6 +1,7 @@
 package core
 
 import (
+	"math"
 	"testing"
 
 	"github.com/google/uuid"
@@ -129,4 +130,30 @@ func TestRankBids_PreservesDecryptedFlag(t *testing.T) {
 	assert.True(t, resp.Bids[0].Decrypted)
 	assert.Equal(t, fallback.Bid.ID, resp.Bids[1].Bid.ID)
 	assert.False(t, resp.Bids[1].Decrypted)
+}
+
+func TestWeightedPrices(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		ar, br        int64
+		ac, bc, order int
+	}{
+		{"tie", 2000, 4000, 110, 55, 0},
+		{"sub-micro difference", 101, 100, 1, 1, 1},
+		{"fractional scores", 51, 100, 2, 1, 1},
+		{"positive overflow", math.MaxInt64, math.MaxInt64 - 1, 499, 500, -1},
+		{"negative overflow", math.MinInt64, math.MinInt64 + 1, 499, 500, 1},
+		{"positive negative", math.MaxInt64, math.MinInt64, 1, 500, 1},
+		{"invalid coefficient neutral", 101, 100, 501, 100, 1},
+		{"missing coefficient neutral", 101, 100, 0, 100, 1},
+		{"negative coefficient neutral", 101, 100, -1, 100, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			a, b := resolved(tc.ar), resolved(tc.br)
+			a.Bid.PricingCoefficientHundredths, b.Bid.PricingCoefficientHundredths = tc.ac, tc.bc
+			assert.Equal(t, tc.order, comparePrices(a, b))
+			assert.Equal(t, -tc.order, comparePrices(b, a))
+		})
+	}
 }
