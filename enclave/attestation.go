@@ -4,10 +4,12 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"slices"
 	"time"
 
 	edgebit "github.com/edgebitio/nitro-enclaves-sdk-go"
@@ -23,13 +25,13 @@ type EnclaveAttester interface {
 	Attest(options edgebit.AttestationOptions) ([]byte, error)
 }
 
-// generateNonce returns a fresh, hex-encoded 256-bit random nonce.
-func generateNonce() (string, error) {
+// generateNonce returns a fresh 256-bit random nonce in the requested encoding.
+func generateNonce(encode func([]byte) string) (string, error) {
 	var b [32]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		return "", fmt.Errorf("generate nonce: %w", err)
 	}
-	return hex.EncodeToString(b[:]), nil
+	return encode(b[:]), nil
 }
 
 // publicKeyToPEM marshals pub as a PKIX-encoded "PUBLIC KEY" PEM block.
@@ -56,19 +58,32 @@ func GenerateArbitrationAttestation(
 	if attester == nil {
 		return nil, fmt.Errorf("nil attester")
 	}
-	bidNonce, err := generateNonce()
+	// Hash nonces are opaque to validators. Compact encoding leaves room for the
+	// aligned coefficients in Nitro's 1024-byte user_data field.
+	weighted := slices.ContainsFunc(resolved, func(b core.ArbiterBid) bool {
+		return b.Bid.CoefficientHundredths() != 100
+	})
+	encode := hex.EncodeToString
+	if weighted {
+		encode = base64.RawURLEncoding.EncodeToString
+	}
+	bidNonce, err := generateNonce(encode)
 	if err != nil {
 		return nil, err
 	}
-	requestNonce, err := generateNonce()
+	requestNonce, err := generateNonce(encode)
 	if err != nil {
 		return nil, err
 	}
 
+	var coefficients []int
 	bidHashes := make([]string, 0, len(resolved))
 	for _, ab := range resolved {
 		if ab.Bid == nil {
 			continue
+		}
+		if weighted {
+			coefficients = append(coefficients, ab.Bid.CoefficientHundredths())
 		}
 		bidHashes = append(bidHashes, core.ComputeBidHash(ab.Bid.ID.String(), ab.Revenue, bidNonce))
 	}
@@ -83,21 +98,22 @@ func GenerateArbitrationAttestation(
 
 	now := time.Now().UTC()
 	userData := enclaveapi.ArbitrationAttestationUserData{
-		RequestID:    req.RequestID,
-		BidHashes:    bidHashes,
-		BidHashNonce: bidNonce,
-		RequestHash:  core.ComputeRequestHash(req.RequestID, requestNonce),
-		RequestNonce: requestNonce,
-		Winner:       winnerDescriptor,
-		ExcludedBids: excluded,
-		Timestamp:    now,
+		RequestID:                req.RequestID,
+		BidCoefficientHundredths: coefficients,
+		BidHashes:                bidHashes,
+		BidHashNonce:             bidNonce,
+		RequestHash:              core.ComputeRequestHash(req.RequestID, requestNonce),
+		RequestNonce:             requestNonce,
+		Winner:                   winnerDescriptor,
+		ExcludedBids:             excluded,
+		Timestamp:                now,
 	}
 
 	userDataBytes, err := json.Marshal(userData)
 	if err != nil {
 		return nil, fmt.Errorf("marshal user data: %w", err)
 	}
-	attestationNonce, err := generateNonce()
+	attestationNonce, err := generateNonce(hex.EncodeToString)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +154,7 @@ func GenerateKeyAttestation(
 	if err != nil {
 		return nil, fmt.Errorf("marshal key user data: %w", err)
 	}
-	attestationNonce, err := generateNonce()
+	attestationNonce, err := generateNonce(hex.EncodeToString)
 	if err != nil {
 		return nil, err
 	}
