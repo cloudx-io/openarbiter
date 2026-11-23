@@ -8,6 +8,8 @@ package core
 import (
 	"cmp"
 	"errors"
+	"math"
+	"math/big"
 	"math/rand"
 	"slices"
 
@@ -29,6 +31,9 @@ var (
 // arbiter falls back to [Bid.CleartextRevenue] if the ciphertext is
 // absent or unrecoverable.
 type Bid struct {
+	// PricingCoefficientHundredths weights the resolved price for ranking.
+	// One hundred is neutral. Zero (the default) and out-of-range values use 100.
+	PricingCoefficientHundredths int
 	// ID uniquely identifies the bid within its containing request. The
 	// arbiter uses it only to give callers a stable handle for mapping
 	// the chosen winner back to its original wire representation.
@@ -64,6 +69,33 @@ type ArbiterBid struct {
 	Decrypted bool
 }
 
+// CoefficientHundredths returns the multiplier used to rank and attest a bid.
+func (b *Bid) CoefficientHundredths() int {
+	if b == nil || !ValidCoefficientHundredths(b.PricingCoefficientHundredths) {
+		return 100
+	}
+	return b.PricingCoefficientHundredths
+}
+
+// ValidCoefficientHundredths reports whether an explicit coefficient is in [1, 500].
+func ValidCoefficientHundredths(value int) bool { return value >= 1 && value <= 500 }
+
+// comparePrices compares exact products in hundredths of a microdollar.
+func comparePrices(a, b ArbiterBid) int {
+	ac, bc := int64(a.Bid.CoefficientHundredths()), int64(b.Bid.CoefficientHundredths())
+	if ac == bc {
+		return cmp.Compare(a.Revenue, b.Revenue)
+	}
+	ar, br := int64(a.Revenue), int64(b.Revenue)
+	if ar >= math.MinInt64/ac && ar <= math.MaxInt64/ac && br >= math.MinInt64/bc && br <= math.MaxInt64/bc {
+		return cmp.Compare(ar*ac, br*bc)
+	}
+	var x, y big.Int
+	x.Mul(big.NewInt(ar), big.NewInt(ac))
+	y.Mul(big.NewInt(br), big.NewInt(bc))
+	return x.Cmp(&y)
+}
+
 // ArbitrateResponse is the boundary value the arbiter returns. Bids
 // contains every input bid annotated with its post-decryption revenue;
 // Winner points into Bids at the entry the arbiter chose, or is nil iff
@@ -82,7 +114,7 @@ type RandSource interface {
 }
 
 // RankBids returns the input bids annotated with their resolved revenue,
-// shuffled and stably sorted by revenue descending. The first entry of
+// shuffled and stably sorted by weighted price descending. The first entry of
 // [ArbitrateResponse.Bids] is also returned as [ArbitrateResponse.Winner]
 // (or nil if bids is empty). RankBids does not mutate the input slice.
 //
@@ -102,7 +134,7 @@ func RankBids(bids []ArbiterBid, randSource RandSource) *ArbitrateResponse {
 		resp.Bids[i], resp.Bids[j] = resp.Bids[j], resp.Bids[i]
 	})
 	slices.SortStableFunc(resp.Bids, func(a, b ArbiterBid) int {
-		return cmp.Compare(b.Revenue, a.Revenue)
+		return comparePrices(b, a)
 	})
 	resp.Winner = &resp.Bids[0]
 	return resp

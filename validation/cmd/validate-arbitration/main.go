@@ -9,6 +9,7 @@
 //	                     -request-id <req-id> \
 //	                     -bid-id <bid-id> \
 //	                     -revenue-micros <int64> \
+//	                     [-pricing-coefficient-hundredths <1..500>] \
 //	                     [-is-winner] \
 //	                     [-exclusion-reason <reason>] \
 //	                     [-format text|json] \
@@ -40,6 +41,7 @@ func main() {
 	requestID := flag.String("request-id", "", "Arbitration request ID (required)")
 	bidID := flag.String("bid-id", "", "Caller's bid ID (required)")
 	revenueMicros := flag.Int64("revenue-micros", 0, "Caller's per-impression revenue in MicroDollars")
+	coefficient := flag.Int("pricing-coefficient-hundredths", 100, "Verify the included bid's comparison coefficient (1 to 500)")
 	isWinner := flag.Bool("is-winner", false, "Whether the caller expects to have won")
 	exclusionReason := flag.String("exclusion-reason", "", "If set, validate that the bid was excluded under this reason rather than included")
 	outputFormat := flag.String("format", "text", "Output format: text or json")
@@ -64,6 +66,11 @@ func main() {
 		BidRevenue:          core.MicroDollars(*revenueMicros),
 		IsWinner:            *isWinner,
 	}
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "pricing-coefficient-hundredths" {
+			input.ExpectedCoefficientHundredths = coefficient
+		}
+	})
 	if *exclusionReason != "" {
 		input.Expectation = validation.ExpectExcluded
 		input.ExpectedExclusionReason = *exclusionReason

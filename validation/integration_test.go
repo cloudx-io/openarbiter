@@ -390,3 +390,40 @@ func TestIntegration_KeyAttestation_RoundTrip(t *testing.T) {
 		assert.False(t, result.IsValid())
 	})
 }
+
+func TestValidateIncludedBidCoefficient(t *testing.T) {
+	t.Parallel()
+	now := time.Now().UTC()
+	ca := newSyntheticCA(t, now.Add(-time.Hour), now.Add(time.Hour))
+	id, requestID := uuid.NewString(), uuid.NewString()
+	bidNonce, requestNonce := randomNonce(t), randomNonce(t)
+	for _, tc := range []struct {
+		name         string
+		coefficients []int
+		expected     *int
+		valid        bool
+	}{
+		{"legacy caller weighted auction", []int{90, 110}, nil, true},
+		{"weighted proof", []int{90, 110}, new(110), true},
+		{"wrong bid's coefficient", []int{90, 110}, new(90), false},
+		{"legacy proof neutral", nil, new(100), true},
+		{"legacy proof non-neutral", nil, new(110), false},
+		{"short vector", []int{110}, new(110), false},
+		{"invalid other entry", []int{501, 110}, new(110), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ud := enclaveapi.ArbitrationAttestationUserData{
+				RequestID: requestID, RequestNonce: requestNonce, RequestHash: core.ComputeRequestHash(requestID, requestNonce),
+				BidHashNonce: bidNonce, BidHashes: []string{core.ComputeBidHash(uuid.NewString(), 4200, bidNonce), core.ComputeBidHash(id, 4000, bidNonce)},
+				BidCoefficientHundredths: tc.coefficients, Winner: &enclaveapi.ArbiterBidWithoutSource{ID: id, Revenue: 4000}, Timestamp: now,
+			}
+			att := signAttestation(t, ca, fixedPCRs, now, ud)
+			res, err := ValidateArbitrationAttestation(&ArbitrationValidationInput{
+				AttestationCOSEGzip: att.COSEGzip, KnownPCRs: []PCRSet{fixedPCRs}, RequestID: requestID, BidID: id, BidRevenue: 4000,
+				IsWinner: true, ExpectedCoefficientHundredths: tc.expected, Roots: ca.rootPool(),
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tc.valid, res.IsValid(), res.ValidationDetails)
+		})
+	}
+}

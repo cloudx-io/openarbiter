@@ -128,10 +128,11 @@ func wireBidsToCoreBids(wire []enclaveapi.WireBid) ([]core.Bid, []core.ExcludedB
 			continue
 		}
 		bids = append(bids, core.Bid{
-			ID:                  id,
-			Source:              wb.Source,
-			CleartextRevenue:    wb.CleartextRevenue,
-			EncryptedCPMDollars: wb.EncryptedCPMDollars,
+			ID:                           id,
+			Source:                       wb.Source,
+			CleartextRevenue:             wb.CleartextRevenue,
+			PricingCoefficientHundredths: wb.PricingCoefficientHundredths,
+			EncryptedCPMDollars:          wb.EncryptedCPMDollars,
 		})
 	}
 	return bids, excluded

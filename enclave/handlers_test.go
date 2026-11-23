@@ -195,3 +195,68 @@ func TestHandleArbitrationRequest_NilKeyManager(t *testing.T) {
 	assert.Equal(t, "arbitration_response", resp.Type)
 	assert.Equal(t, "nil key manager", resp.Message)
 }
+
+func TestWeightedArbitrationUsesResolvedPrices(t *testing.T) {
+	t.Parallel()
+	km, err := NewKeyManager()
+	require.NoError(t, err)
+	sealed, err := core.SealCPMDollars(km.PublicKey, 4.20)
+	require.NoError(t, err)
+	bad := &core.EncryptedRevenue{}
+	for _, tc := range []struct {
+		name                      string
+		ciphertext                *core.EncryptedRevenue
+		sealedWeight, plainWeight int
+		sealedWins, decrypted     bool
+	}{
+		{"neutral", sealed, 0, 0, true, true},
+		{"weight plaintext", sealed, 0, 110, false, true},
+		{"weight sealed", sealed, 90, 0, false, true},
+		{"weight cleartext fallback", bad, 110, 0, true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sealedID, plainID := uuid.NewString(), uuid.NewString()
+			req := enclaveapi.EnclaveArbitrationRequest{RequestID: uuid.NewString(), Bids: []enclaveapi.WireBid{
+				{ID: sealedID, EncryptedCPMDollars: tc.ciphertext, CleartextRevenue: 3900, PricingCoefficientHundredths: tc.sealedWeight},
+				{ID: plainID, CleartextRevenue: 4000, PricingCoefficientHundredths: tc.plainWeight},
+			}}
+			att := newFakeAttester()
+			res := HandleArbitrationRequest(att, km, req)
+			require.True(t, res.Success, res.Message)
+			require.Len(t, res.Bids, 2)
+			var ud enclaveapi.ArbitrationAttestationUserData
+			require.NoError(t, json.Unmarshal(att.Last.UserData, &ud))
+			require.NotNil(t, ud.Winner)
+			winner := plainID
+			if tc.sealedWins {
+				winner = sealedID
+			}
+			require.Equal(t, winner, res.Bids[0].ID)
+			assert.Equal(t, winner, ud.Winner.ID)
+			assert.Equal(t, res.Bids[0].Revenue, ud.Winner.Revenue)
+			for i, b := range res.Bids {
+				price := core.MicroDollars(4000)
+				coeff := tc.plainWeight
+				if b.ID == sealedID {
+					coeff = tc.sealedWeight
+					price = 3900
+					if tc.decrypted {
+						price = 4200
+					}
+					assert.Equal(t, tc.decrypted, b.Decrypted)
+				}
+				assert.Equal(t, price, b.Revenue)
+				assert.Equal(t, core.ComputeBidHash(b.ID, price, ud.BidHashNonce), ud.BidHashes[i])
+				if tc.plainWeight == 0 && tc.sealedWeight == 0 {
+					assert.Nil(t, ud.BidCoefficientHundredths)
+				} else {
+					if coeff == 0 {
+						coeff = 100
+					}
+					require.Len(t, ud.BidCoefficientHundredths, len(res.Bids))
+					assert.Equal(t, coeff, ud.BidCoefficientHundredths[i])
+				}
+			}
+		})
+	}
+}

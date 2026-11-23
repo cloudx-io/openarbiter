@@ -7,6 +7,10 @@
 package enclaveapi
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"strconv"
 	"time"
 
 	oaenclaveapi "github.com/cloudx-io/openauction/enclaveapi"
@@ -78,10 +82,37 @@ type KeyAttestationDoc struct {
 // (instead of the broader [core.Currency] interface, which is not
 // JSON-friendly).
 type WireBid struct {
-	ID                  string                 `json:"id"`
-	Source              string                 `json:"source"`
-	CleartextRevenue    core.MicroDollars      `json:"cleartext_revenue_micros"`
-	EncryptedCPMDollars *core.EncryptedRevenue `json:"encrypted_cpm_dollars,omitempty"`
+	PricingCoefficientHundredths int                    `json:"pricing_coefficient_hundredths,omitempty"`
+	ID                           string                 `json:"id"`
+	Source                       string                 `json:"source"`
+	CleartextRevenue             core.MicroDollars      `json:"cleartext_revenue_micros"`
+	EncryptedCPMDollars          *core.EncryptedRevenue `json:"encrypted_cpm_dollars,omitempty"`
+}
+
+// UnmarshalJSON accepts out-of-range integer coefficients at any width.
+func (b *WireBid) UnmarshalJSON(data []byte) error {
+	type fields WireBid
+	wire := struct {
+		*fields
+		Coefficient json.RawMessage `json:"pricing_coefficient_hundredths"`
+	}{fields: (*fields)(b)}
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	raw := wire.Coefficient
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return nil
+	}
+	// json.Unmarshal already checked JSON syntax. Only integer tokens qualify.
+	if (raw[0] != '-' && (raw[0] < '0' || raw[0] > '9')) || bytes.ContainsAny(raw, ".eE") {
+		return fmt.Errorf("pricing_coefficient_hundredths must be an integer")
+	}
+	value, err := strconv.Atoi(string(raw))
+	if err != nil || !core.ValidCoefficientHundredths(value) {
+		value = 100
+	}
+	b.PricingCoefficientHundredths = value
+	return nil
 }
 
 // EnclaveArbitrationRequest is the host-→-enclave request envelope. The
@@ -147,12 +178,15 @@ type EnclaveArbitrationResponse struct {
 // arbiter excluded so an off-enclave validator can replay the
 // inclusion, exclusion, and outcome checks.
 type ArbitrationAttestationUserData struct {
-	RequestID    string                   `json:"request_id"`
-	BidHashes    []string                 `json:"bid_hashes"`
-	BidHashNonce string                   `json:"bid_hash_nonce"`
-	RequestHash  string                   `json:"request_hash"`
-	RequestNonce string                   `json:"request_nonce"`
-	Winner       *ArbiterBidWithoutSource `json:"winner,omitempty"`
+	// BidCoefficientHundredths has one effective coefficient per BidHashes entry, in
+	// matching order. Absence means every bid used the neutral coefficient of 100.
+	BidCoefficientHundredths []int                    `json:"bid_coefficient_hundredths,omitempty"`
+	RequestID                string                   `json:"request_id"`
+	BidHashes                []string                 `json:"bid_hashes"`
+	BidHashNonce             string                   `json:"bid_hash_nonce"`
+	RequestHash              string                   `json:"request_hash"`
+	RequestNonce             string                   `json:"request_nonce"`
+	Winner                   *ArbiterBidWithoutSource `json:"winner,omitempty"`
 	// ExcludedBids lists wire bids the arbiter saw but did not rank,
 	// alongside the reason for each exclusion.
 	ExcludedBids []core.ExcludedBid `json:"excluded_bids,omitempty"`

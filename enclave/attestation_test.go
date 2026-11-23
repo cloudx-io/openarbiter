@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"encoding/json"
+	"math"
 	"testing"
 	"time"
 
@@ -151,4 +152,19 @@ func TestGenerateKeyAttestation_NilAttester(t *testing.T) {
 	require.NoError(t, err)
 	_, err = GenerateKeyAttestation(nil, &priv.PublicKey, "")
 	require.Error(t, err)
+}
+
+// Eight UUID bids fit in the legacy attestation with no exclusions. Verify that
+// even three-digit coefficients and a full-width signed revenue fit Nitro's
+// 1024-byte user_data field for the same request.
+func TestWeightedAttestationFitsUserDataBudget(t *testing.T) {
+	t.Parallel()
+	att := newFakeAttester()
+	ranked := make([]core.ArbiterBid, 8)
+	for i := range ranked {
+		ranked[i] = core.ArbiterBid{Bid: &core.Bid{ID: uuid.New(), PricingCoefficientHundredths: 500}, Revenue: math.MinInt64}
+	}
+	_, err := GenerateArbitrationAttestation(att, enclaveapi.EnclaveArbitrationRequest{RequestID: uuid.NewString()}, ranked, &ranked[0], nil)
+	require.NoError(t, err)
+	require.LessOrEqual(t, len(att.Last.UserData), 1024)
 }
