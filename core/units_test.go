@@ -36,6 +36,8 @@ func TestDollarsAsMicros(t *testing.T) {
 		{"one_dollar", 1, 1_000_000},
 		{"fractional", 0.25, 250_000},
 		{"negative", -2.5, -2_500_000},
+		{"inexact_in_binary", 2.01, 2_010_000},
+		{"inexact_in_binary_negative", -2.01, -2_010_000},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -65,7 +67,22 @@ func TestDollarsPerMilleDollars(t *testing.T) {
 
 func TestDollarsPerMille_RoundTrip(t *testing.T) {
 	t.Parallel()
-	assert.Equal(t, MicroDollars(5_000), DollarsPerMille(5).Dollars().AsMicros())
+	cases := []struct {
+		name string
+		in   DollarsPerMille
+		want MicroDollars
+	}{
+		{"common_cpm", 5, 5_000},
+		{"inexact_in_binary", 2.01, 2_010},
+		{"small_inexact_in_binary", 0.03, 30},
+		{"inexact_in_binary_negative", -2.01, -2_010},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, tc.in.Dollars().AsMicros())
+		})
+	}
 }
 
 func TestCurrencyInterface(_ *testing.T) {
